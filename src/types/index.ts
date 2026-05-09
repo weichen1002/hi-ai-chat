@@ -1,3 +1,5 @@
+export type AppMode = 'chat' | 'writing';
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -13,7 +15,7 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   model: string;
-  mode: 'chat' | 'writing';
+  mode: AppMode;
 }
 
 export interface Model {
@@ -39,7 +41,7 @@ export interface AppState {
   isLoading: boolean;
   error: string | null;
   sidebarOpen: boolean;
-  activeMode: 'chat' | 'writing';
+  activeMode: AppMode;
   theme: 'dark' | 'light';
 }
 

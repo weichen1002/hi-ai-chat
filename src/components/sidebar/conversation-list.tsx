@@ -2,6 +2,7 @@
 
 import { Conversation } from '@/types';
 import { formatTimestamp } from '@/lib/utils';
+import { useAppStore } from '@/stores/app-store';
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -11,32 +12,38 @@ interface ConversationListProps {
 }
 
 export function ConversationList({ conversations, currentId, onSelect, onDelete }: ConversationListProps) {
+  const { activeMode } = useAppStore();
+  const emptyStateIcon = activeMode === 'writing' ? '✍️' : '💬';
+  const emptyStateText = activeMode === 'writing' ? '还没有写作记录' : '暂无对话记录';
+
   if (conversations.length === 0) {
     return (
       <div className="px-4 py-8 text-center">
-        <div className="text-2xl mb-2 opacity-40">💬</div>
+        <div className="text-2xl mb-2 opacity-40">{emptyStateIcon}</div>
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          暂无对话记录
+          {emptyStateText}
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-0.5 py-1">
+    <div className="space-y-1 py-1">
       {conversations.map((conversation) => {
         const isActive = currentId === conversation.id;
         const lastMessage = conversation.messages.filter(m => m.role !== 'system').at(-1);
         const preview = lastMessage
           ? lastMessage.content.substring(0, 40) + (lastMessage.content.length > 40 ? '...' : '')
           : '暂无消息';
+        const modeIcon = conversation.mode === 'writing' ? '✍️' : '💬';
+        const accentColor = conversation.mode === 'writing' ? 'rgba(32, 107, 88, 0.14)' : 'rgba(99, 102, 241, 0.14)';
 
         return (
           <div
             key={conversation.id}
-            className="group relative flex items-start gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all animate-fade-in"
+            className="group relative flex items-start gap-3 px-3 py-3 rounded-2xl cursor-pointer transition-all animate-fade-in touch-manipulation"
             style={{
-              background: isActive ? 'var(--bg-elevated)' : 'transparent',
+              background: isActive ? 'var(--panel-surface)' : 'transparent',
               border: isActive ? '1px solid var(--border-active)' : '1px solid transparent',
             }}
             onClick={() => onSelect(conversation.id)}
@@ -55,11 +62,11 @@ export function ConversationList({ conversations, currentId, onSelect, onDelete 
             <div
               className="mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs"
               style={{
-                background: isActive ? 'rgba(124, 58, 237, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                color: isActive ? '#a78bfa' : 'var(--text-muted)',
+                background: isActive ? accentColor : 'var(--panel-muted)',
+                color: isActive ? 'var(--text-accent)' : 'var(--text-muted)',
               }}
             >
-              {conversation.mode === 'writing' ? '✍️' : '💬'}
+              {modeIcon}
             </div>
 
             {/* Content */}
@@ -90,7 +97,7 @@ export function ConversationList({ conversations, currentId, onSelect, onDelete 
                 e.stopPropagation();
                 onDelete(conversation.id);
               }}
-              className="absolute right-2 top-2 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute right-2 top-2 p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity touch-manipulation"
               style={{ color: 'var(--text-muted)' }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';

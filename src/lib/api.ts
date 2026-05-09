@@ -1,4 +1,4 @@
-import { Message, Model } from '@/types';
+import { Model } from '@/types';
 
 export const AVAILABLE_MODELS: Model[] = [
   {

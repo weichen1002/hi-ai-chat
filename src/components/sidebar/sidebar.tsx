@@ -1,5 +1,6 @@
 'use client';
 
+import { AppMode } from '@/types';
 import { useAppStore } from '@/stores/app-store';
 import { ConversationList } from './conversation-list';
 import { ModelSelector } from './model-selector';
@@ -26,6 +27,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     onClose();
   };
 
+  const handleModeSwitch = (mode: AppMode) => {
+    setActiveMode(mode);
+    onClose();
+  };
+
+  const modeItems: Array<{ mode: AppMode; label: string; icon: string }> = [
+    { mode: 'chat', label: '对话', icon: '💬' },
+    { mode: 'writing', label: '写作', icon: '✍️' },
+  ];
+
   const handleSelectConversation = (id: string) => {
     setCurrentConversation(id);
     onClose();
@@ -40,14 +51,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       className={`fixed inset-y-0 left-0 z-50 flex flex-col transition-transform duration-300 ease-in-out
         lg:static lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       style={{
-        width: 'var(--sidebar-width)',
-        minWidth: 'var(--sidebar-width)',
-        background: 'var(--bg-secondary)',
+        width: 'min(92vw, 22rem)',
+        minWidth: 'min(92vw, 22rem)',
+        background: 'var(--sidebar-bg)',
         borderRight: '1px solid var(--border-default)',
       }}
     >
       {/* Logo & Brand */}
-      <div className="flex items-center gap-3 px-5 pt-5 pb-3">
+      <div className="flex items-center gap-3 px-4 pb-3 pt-5 sm:px-5" style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top))' }}>
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold"
           style={{ background: 'var(--accent-gradient)' }}
@@ -55,8 +66,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           Hi
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Hi AI Chat</h1>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>智能对话平台</p>
+          <h1 className="text-sm font-semibold tracking-[0.08em]" style={{ color: 'var(--text-primary)' }}>Story Console</h1>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>对话与写作一体化</p>
         </div>
         <button
           onClick={onClose}
@@ -76,7 +87,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="px-4 py-3">
         <button
           onClick={handleNewConversation}
-          className="btn-gradient w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
+          className="btn-gradient w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-medium touch-manipulation"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -88,37 +99,28 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Mode Tabs */}
       <div className="px-4 pb-3">
         <div
-          className="flex rounded-xl p-1"
-          style={{ background: 'var(--bg-primary)' }}
+          className="grid grid-cols-2 rounded-2xl p-1.5"
+          style={{ background: 'var(--panel-muted)' }}
         >
-          <button
-            onClick={() => setActiveMode('chat')}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
-            style={{
-              background: activeMode === 'chat' ? 'var(--bg-elevated)' : 'transparent',
-              color: activeMode === 'chat' ? 'var(--text-primary)' : 'var(--text-muted)',
-              boxShadow: activeMode === 'chat' ? 'var(--shadow-sm)' : 'none',
-            }}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            对话
-          </button>
-          <button
-            onClick={() => setActiveMode('writing')}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
-            style={{
-              background: activeMode === 'writing' ? 'var(--bg-elevated)' : 'transparent',
-              color: activeMode === 'writing' ? 'var(--text-primary)' : 'var(--text-muted)',
-              boxShadow: activeMode === 'writing' ? 'var(--shadow-sm)' : 'none',
-            }}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            写作
-          </button>
+          {modeItems.map((item) => {
+            const isActive = activeMode === item.mode;
+
+            return (
+              <button
+                key={item.mode}
+                onClick={() => handleModeSwitch(item.mode)}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium transition-all"
+                style={{
+                  background: isActive ? 'var(--bg-elevated)' : 'transparent',
+                  color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+                  boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
+                }}
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -128,7 +130,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </div>
 
       {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto px-2">
+      <div className="flex-1 overflow-y-auto px-2 pb-4">
         <ConversationList
           conversations={conversations.filter(c => c.mode === activeMode)}
           currentId={currentConversationId}
@@ -140,7 +142,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Bottom: Theme Toggle */}
       <div
         className="p-4"
-        style={{ borderTop: '1px solid var(--border-default)' }}
+        style={{ borderTop: '1px solid var(--border-default)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
       >
         <ThemeToggle />
       </div>

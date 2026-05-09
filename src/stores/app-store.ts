@@ -1,22 +1,34 @@
 import { create } from 'zustand';
-import { Conversation, AppState } from '@/types';
+import { AppMode, Conversation, AppState } from '@/types';
 import { generateId } from '@/lib/utils';
-import { saveConversations, loadConversations } from '@/lib/storage';
+import { saveConversations, loadConversations, saveCurrentConversationId, loadCurrentConversationId } from '@/lib/storage';
 
 interface AppStore extends AppState {
-  createConversation: (mode?: 'chat' | 'writing') => string;
+  createConversation: (mode?: AppMode) => string;
   setCurrentConversation: (id: string | null) => void;
   updateConversation: (id: string, updates: Partial<Conversation>) => void;
   deleteConversation: (id: string) => void;
-  addMessageToConversation: (conversationId: string, message: { role: 'user' | 'assistant' | 'system'; content: string; model?: string }) => void;
-  loadConversations: () => void;
+  addMessageToConversation: (conversationId: string, message: { id?: string; timestamp?: number; role: 'user' | 'assistant' | 'system'; content: string; model?: string }) => void;
+  loadConversations: () => Conversation[];
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
-  setActiveMode: (mode: 'chat' | 'writing') => void;
+  setActiveMode: (mode: AppMode) => void;
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
+}
+
+function createDraftConversation(mode: AppMode): Conversation {
+  return {
+    id: generateId(),
+    title: '新对话',
+    messages: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    model: 'gpt-5.5',
+    mode,
+  };
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -25,31 +37,34 @@ export const useAppStore = create<AppStore>((set) => ({
   isLoading: false,
   error: null,
   sidebarOpen: false,
-  activeMode: 'chat' as 'chat' | 'writing',
-  theme: 'dark' as 'dark' | 'light',
+  activeMode: 'chat' as AppMode,
+  theme: 'light' as 'dark' | 'light',
 
   createConversation: (mode = 'chat') => {
-    const id = generateId();
-    const newConversation: Conversation = {
-      id,
-      title: '新对话',
-      messages: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      model: 'gpt-5.4',
-      mode,
-    };
+    const newConversation = createDraftConversation(mode);
 
     set((state) => {
       const conversations = [newConversation, ...state.conversations];
       saveConversations(conversations);
-      return { conversations, currentConversationId: id };
+      saveCurrentConversationId(newConversation.id);
+      return {
+        conversations,
+        currentConversationId: newConversation.id,
+        activeMode: mode,
+      };
     });
 
-    return id;
+    return newConversation.id;
   },
 
-  setCurrentConversation: (id) => set({ currentConversationId: id }),
+  setCurrentConversation: (id) => set((state) => {
+    saveCurrentConversationId(id);
+    const currentConversation = state.conversations.find((conversation) => conversation.id === id);
+    return {
+      currentConversationId: id,
+      activeMode: currentConversation?.mode || state.activeMode,
+    };
+  }),
 
   updateConversation: (id, updates) => set((state) => {
     const conversations = state.conversations.map(conv =>
@@ -60,12 +75,20 @@ export const useAppStore = create<AppStore>((set) => ({
   }),
 
   deleteConversation: (id) => set((state) => {
-    const conversations = state.conversations.filter(conv => conv.id !== id);
+    const remainingConversations = state.conversations.filter(conv => conv.id !== id);
+    const conversations = remainingConversations.length > 0
+      ? remainingConversations
+      : [createDraftConversation(state.activeMode)];
     saveConversations(conversations);
     const currentConversationId = state.currentConversationId === id
-      ? (conversations[0]?.id || null)
+      ? conversations[0].id
       : state.currentConversationId;
-    return { conversations, currentConversationId };
+    saveCurrentConversationId(currentConversationId);
+    return {
+      conversations,
+      currentConversationId,
+      activeMode: conversations.find((conversation) => conversation.id === currentConversationId)?.mode || state.activeMode,
+    };
   }),
 
   addMessageToConversation: (conversationId, message) => set((state) => {
@@ -75,8 +98,8 @@ export const useAppStore = create<AppStore>((set) => ({
         ...conv,
         messages: [...conv.messages, {
           ...message,
-          id: generateId(),
-          timestamp: Date.now(),
+          id: message.id || generateId(),
+          timestamp: message.timestamp || Date.now(),
         }],
         updatedAt: Date.now(),
       };
@@ -87,17 +110,48 @@ export const useAppStore = create<AppStore>((set) => ({
 
   loadConversations: () => {
     const conversations = loadConversations();
-    set({ 
+    const savedCurrentConversationId = loadCurrentConversationId();
+    const currentConversationId = savedCurrentConversationId && conversations.some((conversation) => conversation.id === savedCurrentConversationId)
+      ? savedCurrentConversationId
+      : (conversations[0]?.id || null);
+    const activeMode = conversations.find((conversation) => conversation.id === currentConversationId)?.mode || 'chat';
+
+    set({
       conversations,
-      currentConversationId: conversations.length > 0 ? conversations[0].id : null
+      currentConversationId,
+      activeMode,
     });
+
+    saveCurrentConversationId(currentConversationId);
+    return conversations;
   },
 
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  setActiveMode: (mode) => set({ activeMode: mode }),
+  setActiveMode: (mode) => set((state) => {
+    const matchingConversation = state.conversations.find((conversation) => conversation.mode === mode);
+
+    if (matchingConversation) {
+      saveCurrentConversationId(matchingConversation.id);
+      return {
+        activeMode: mode,
+        currentConversationId: matchingConversation.id,
+      };
+    }
+
+    const newConversation = createDraftConversation(mode);
+    const conversations = [newConversation, ...state.conversations];
+    saveConversations(conversations);
+    saveCurrentConversationId(newConversation.id);
+
+    return {
+      activeMode: mode,
+      conversations,
+      currentConversationId: newConversation.id,
+    };
+  }),
   setTheme: (theme) => {
     set({ theme });
     if (typeof window !== 'undefined') {

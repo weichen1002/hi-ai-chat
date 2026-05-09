@@ -7,11 +7,11 @@ import { WritingContainer } from '@/components/writing/writing-container';
 export default function HomePage() {
   const { currentConversationId, conversations, activeMode } = useAppStore();
   const currentConversation = conversations.find(c => c.id === currentConversationId);
+  const activeConversationId = currentConversation?.mode === activeMode ? currentConversationId : null;
 
-  // If current conversation mode doesn't match active mode, show appropriate container
-  if (activeMode === 'writing' && currentConversation?.mode === 'writing') {
-    return <WritingContainer conversationId={currentConversationId} />;
+  if (activeMode === 'writing') {
+    return <WritingContainer conversationId={activeConversationId} />;
   }
 
-  return <ChatContainer conversationId={currentConversationId} />;
+  return <ChatContainer conversationId={activeConversationId} />;
 }

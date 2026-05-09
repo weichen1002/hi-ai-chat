@@ -1,6 +1,7 @@
 'use client';
 
 import { Message } from '@/types';
+import { useAppStore } from '@/stores/app-store';
 import { MessageBubble } from './message-bubble';
 
 interface MessageListProps {
@@ -34,33 +35,31 @@ const QUICK_PROMPTS = [
 ];
 
 export function MessageList({ messages, isLoading, onSendMessage, onRegenerate }: MessageListProps) {
+  const { activeMode } = useAppStore();
+  const isWritingMode = activeMode !== 'chat';
   const visibleMessages = messages.filter(m => m.role !== 'system');
 
   if (visibleMessages.length === 0) {
     return (
       <div className="flex items-center justify-center h-full animate-fade-in">
         <div className="text-center max-w-lg px-4">
-          {/* Gradient title */}
           <div className="mb-2">
             <span className="text-5xl">✨</span>
           </div>
-          <h2 className="text-2xl font-bold gradient-text mb-2">
-            有什么可以帮你的？
-          </h2>
+          <h2 className="text-2xl font-bold mb-2 gradient-text">有什么可以帮你的？</h2>
           <p className="text-sm mb-8" style={{ color: 'var(--text-secondary)' }}>
             我是你的 AI 助手，可以回答问题、写代码、创作内容，以及更多
           </p>
 
-          {/* Quick prompt cards */}
           {onSendMessage && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {QUICK_PROMPTS.map((item, index) => (
                 <button
                   key={index}
                   onClick={() => onSendMessage(item.prompt)}
-                  className="text-left p-4 rounded-xl transition-all group"
+                  className="text-left p-4 rounded-2xl transition-all group"
                   style={{
-                    background: 'var(--bg-tertiary)',
+                    background: 'var(--panel-surface)',
                     border: '1px solid var(--border-default)',
                   }}
                   onMouseEnter={(e) => {
@@ -91,18 +90,37 @@ export function MessageList({ messages, isLoading, onSendMessage, onRegenerate }
   }
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${isWritingMode ? 'writing-thread' : ''}`}>
       {visibleMessages.map((message, index) => {
+        const previousMessage = visibleMessages[index - 1];
         const isLastAssistant = message.role === 'assistant' &&
           index === visibleMessages.length - 1;
+        const isStreamingPlaceholder =
+          isLoading &&
+          isLastAssistant &&
+          message.role === 'assistant' &&
+          message.content === '';
+        const showAssistantDivider =
+          message.role === 'assistant' &&
+          previousMessage?.role === 'user';
+
+        if (isStreamingPlaceholder) {
+          return null;
+        }
 
         return (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            isLatest={isLastAssistant}
-            onRegenerate={isLastAssistant ? onRegenerate : undefined}
-          />
+          <div key={message.id}>
+            {showAssistantDivider && (
+              <div className="message-divider" aria-hidden="true">
+                <span className="divider-dot" />
+              </div>
+            )}
+            <MessageBubble
+              message={message}
+              isLatest={isLastAssistant}
+              onRegenerate={isLastAssistant ? onRegenerate : undefined}
+            />
+          </div>
         );
       })}
 
@@ -114,12 +132,12 @@ export function MessageList({ messages, isLoading, onSendMessage, onRegenerate }
               className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold text-white"
               style={{ background: 'var(--accent-gradient)' }}
             >
-              AI
+              {isWritingMode ? '稿' : 'AI'}
             </div>
             <div
-              className="rounded-2xl px-4 py-3"
+              className={`rounded-2xl px-4 py-3 ${isWritingMode ? 'writing-ai-response' : ''}`}
               style={{
-                background: 'var(--bg-tertiary)',
+                background: 'var(--panel-surface)',
                 border: '1px solid var(--border-default)',
                 borderBottomLeftRadius: '6px',
               }}

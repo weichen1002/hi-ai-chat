@@ -1,5 +1,6 @@
 'use client';
 
+import { ReactNode } from 'react';
 import { useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,6 +11,31 @@ import { useAppStore } from '@/stores/app-store';
 
 interface MarkdownRendererProps {
   content: string;
+}
+
+function flattenText(children: ReactNode): string {
+  if (typeof children === 'string') return children;
+  if (typeof children === 'number') return String(children);
+  if (!children) return '';
+  if (Array.isArray(children)) return children.map(flattenText).join('');
+  if (typeof children === 'object' && 'props' in children) {
+    return flattenText((children as { props?: { children?: ReactNode } }).props?.children);
+  }
+  return '';
+}
+
+function isChapterHeading(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return /^第[\d一二三四五六七八九十百零两]+[章节幕回]/.test(text.trim())
+    || normalized.startsWith('chapter ')
+    || normalized.startsWith('prologue')
+    || normalized.startsWith('epilogue');
+}
+
+function isDialogueParagraph(text: string): boolean {
+  const normalized = text.trim();
+  return /^["“‘「『]/.test(normalized)
+    || /^[-—]{1,2}\s*/.test(normalized);
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -55,14 +81,53 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
-  const { theme } = useAppStore();
+  const { theme, activeMode } = useAppStore();
   const codeTheme = theme === 'dark' ? oneDark : oneLight;
+  const isWritingMode = activeMode === 'writing';
 
   return (
-    <div className="markdown-body">
+    <div className={`markdown-body ${isWritingMode ? 'markdown-body-writing' : ''}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          h1({ children, ...props }) {
+            const text = flattenText(children);
+            return (
+              <h1 className={isWritingMode && isChapterHeading(text) ? 'writing-chapter-heading' : undefined} {...props}>
+                {children}
+              </h1>
+            );
+          },
+          h2({ children, ...props }) {
+            const text = flattenText(children);
+            return (
+              <h2 className={isWritingMode && isChapterHeading(text) ? 'writing-chapter-heading' : undefined} {...props}>
+                {children}
+              </h2>
+            );
+          },
+          h3({ children, ...props }) {
+            const text = flattenText(children);
+            return (
+              <h3 className={isWritingMode && isChapterHeading(text) ? 'writing-chapter-heading' : undefined} {...props}>
+                {children}
+              </h3>
+            );
+          },
+          p({ children, ...props }) {
+            const text = flattenText(children);
+            const className = isWritingMode
+              ? isDialogueParagraph(text)
+                ? 'writing-dialogue'
+                : 'writing-paragraph'
+              : undefined;
+
+            return (
+              <p className={className} {...props}>
+                {children}
+              </p>
+            );
+          },
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
             const codeString = String(children).replace(/\n$/, '');

@@ -18,18 +18,20 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
     setLoading, setError, setMessages,
     setAbortController, stopGeneration,
   } = useChatStore();
-  const { conversations, addMessageToConversation, updateConversation } = useAppStore();
+  const { conversations, addMessageToConversation, updateConversation, setSidebarOpen } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const currentConversation = conversations.find(c => c.id === conversationId);
 
   useEffect(() => {
+    if (isLoading) return;
+
     if (currentConversation) {
       setMessages(currentConversation.messages);
     } else {
       setMessages([]);
     }
-  }, [conversationId, currentConversation, setMessages]);
+  }, [conversationId, currentConversation, isLoading, setMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,8 +40,8 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
   const doSendMessage = useCallback(async (allMessages: { role: string; content: string }[], model: string) => {
     if (!conversationId) return;
 
-    const assistantMessage = { role: 'assistant' as const, content: '', model };
-    addMessage(assistantMessage);
+    const assistantMessage = addMessage({ role: 'assistant' as const, content: '', model });
+    addMessageToConversation(conversationId, assistantMessage);
     setLoading(true);
     setError(null);
 
@@ -63,22 +65,29 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
         });
       },
       (errorMessage) => {
+        const updatedMessages = useChatStore.getState().messages;
         setError(errorMessage);
         setLoading(false);
         setAbortController(null);
+        updateConversation(conversationId, { messages: updatedMessages });
       },
       controller.signal,
     );
-  }, [conversationId, addMessage, updateLastMessage, setLoading, setError, setAbortController, updateConversation]);
+  }, [conversationId, addMessage, addMessageToConversation, updateLastMessage, setLoading, setError, setAbortController, updateConversation]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!conversationId || !currentConversation) return;
 
-    const userMessage = { role: 'user' as const, content, model: currentConversation.model };
-    addMessage(userMessage);
+    const userMessage = addMessage({ role: 'user' as const, content, model: currentConversation.model });
     addMessageToConversation(conversationId, userMessage);
 
-    await doSendMessage([...messages, userMessage], currentConversation.model);
+    await doSendMessage(
+      [...messages, userMessage].map(message => ({
+        role: message.role,
+        content: message.content,
+      })),
+      currentConversation.model,
+    );
   }, [conversationId, currentConversation, messages, addMessage, addMessageToConversation, doSendMessage]);
 
   const handleRegenerate = useCallback(async () => {
@@ -87,12 +96,13 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
     // Remove the last assistant message
     removeLastMessage();
     const msgsWithoutLast = useChatStore.getState().messages;
+    updateConversation(conversationId, { messages: msgsWithoutLast });
 
     await doSendMessage(
       msgsWithoutLast.map(m => ({ role: m.role, content: m.content })),
       currentConversation.model,
     );
-  }, [conversationId, currentConversation, messages, removeLastMessage, doSendMessage]);
+  }, [conversationId, currentConversation, messages, removeLastMessage, doSendMessage, updateConversation]);
 
   const handleStop = useCallback(() => {
     stopGeneration();
@@ -104,18 +114,57 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
   }, [stopGeneration, conversationId, updateConversation]);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Model indicator bar */}
+    <div className="flex flex-col h-full min-h-0">
       <div
-        className="flex items-center justify-center py-2 text-xs"
-        style={{ borderBottom: '1px solid var(--border-default)', color: 'var(--text-muted)' }}
+        className="px-4 py-3 sm:px-6"
+        style={{ borderBottom: '1px solid var(--border-default)', background: 'var(--topbar-bg)' }}
       >
-        <span>模型: {currentConversation?.model || 'GPT-4'}</span>
+        <div className="mx-auto flex max-w-4xl flex-col gap-3">
+          <div className="mobile-titlebar sm:hidden">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="mobile-titlebar__menu"
+              aria-label="打开菜单"
+            >
+              <svg className="h-[1.05rem] w-[1.05rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M4 7h16M4 12h16M4 17h10" />
+              </svg>
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="text-[0.68rem] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+                Chat Mode
+              </div>
+              <div className="truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                对话
+              </div>
+            </div>
+            <div className="rounded-full px-2.5 py-1 text-[0.68rem]" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
+              {currentConversation?.model || 'gpt-5.5'}
+            </div>
+          </div>
+
+          <div className="hidden min-w-0 sm:flex sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
+              <div className="mb-1 text-xs uppercase tracking-[0.22em]" style={{ color: 'var(--text-muted)' }}>
+                Chat Mode
+              </div>
+              <h2 className="text-xl font-semibold sm:text-2xl" style={{ color: 'var(--text-primary)' }}>
+                更适合长聊与灵感整理
+              </h2>
+              <p className="mt-1 text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
+                配色和留白已经调整成更柔和的阅读体验，手机上也更容易单手使用。
+              </p>
+            </div>
+            <div className="flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-xs" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
+              <span>模型</span>
+              <span style={{ color: 'var(--text-primary)' }}>{currentConversation?.model || 'gpt-5.5'}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-3xl mx-auto">
+      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-7">
+        <div className="max-w-4xl mx-auto">
           <MessageList
             messages={messages}
             isLoading={isLoading}
@@ -126,10 +175,9 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
         </div>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="px-4 py-2 text-sm animate-slide-up" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
-          <div className="max-w-3xl mx-auto flex items-center gap-2">
+          <div className="max-w-4xl mx-auto flex items-center gap-2">
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -138,9 +186,21 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
         </div>
       )}
 
-      {/* Input */}
-      <div className="p-4" style={{ borderTop: '1px solid var(--border-default)' }}>
-        <MessageInput onSendMessage={handleSendMessage} isLoading={isLoading} onStop={handleStop} />
+      <div
+        className="px-3 pt-3 sm:px-6"
+        style={{
+          borderTop: '1px solid var(--border-default)',
+          background: 'var(--topbar-bg)',
+          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))',
+        }}
+      >
+        <MessageInput
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+          onStop={handleStop}
+          placeholder="输入你的问题、灵感，或者让它帮你继续完善设定..."
+          helperText="支持连续追问、改写和补充上下文。"
+        />
       </div>
     </div>
   );

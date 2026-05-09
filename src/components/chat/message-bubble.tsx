@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { Message } from '@/types';
 import { formatTimestamp } from '@/lib/utils';
 import { MarkdownRenderer } from './markdown-renderer';
+import { useAppStore } from '@/stores/app-store';
 
 interface MessageBubbleProps {
   message: Message;
@@ -12,7 +13,9 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isLatest, onRegenerate }: MessageBubbleProps) {
+  const { activeMode } = useAppStore();
   const isUser = message.role === 'user';
+  const isWritingMode = activeMode !== 'chat';
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -29,117 +32,96 @@ export function MessageBubble({ message, isLatest, onRegenerate }: MessageBubble
 
   return (
     <div
-      className={`flex gap-3 animate-slide-up ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
-      style={{ marginBottom: '24px' }}
+      className={`w-full flex animate-slide-up ${isUser ? 'justify-end' : 'justify-start'}`}
+      style={{ marginBottom: isWritingMode ? '28px' : '24px' }}
     >
-      {/* Avatar */}
       <div
-        className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold mt-1"
-        style={
-          isUser
-            ? {
-                background: 'rgba(124, 58, 237, 0.15)',
-                color: '#a78bfa',
-                border: '1px solid rgba(124, 58, 237, 0.2)',
-              }
-            : {
-                background: 'var(--accent-gradient)',
-                color: '#ffffff',
-              }
-        }
+        className={`flex items-start gap-2.5 sm:gap-3 min-w-0 ${
+          isWritingMode && !isUser ? 'max-w-full' : 'max-w-[92%] sm:max-w-[78%]'
+        }`}
       >
-        {isUser ? '你' : 'AI'}
-      </div>
-
-      {/* Message Content */}
-      <div
-        className={`flex flex-col min-w-0 ${isUser ? 'items-end' : 'items-start'}`}
-        style={{ maxWidth: '75%' }}
-      >
-        {/* Role Label */}
         <div
-          className="text-xs font-medium mb-1.5 px-1"
-          style={{
-            color: isUser ? '#a78bfa' : 'var(--text-muted)',
-            opacity: 0.8,
-          }}
-        >
-          {isUser ? '你' : 'AI 助手'}
-        </div>
-
-        {/* Bubble */}
-        <div
-          className="rounded-2xl px-4 py-3 text-sm leading-relaxed"
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-[11px] sm:text-xs font-bold mt-1"
           style={
             isUser
               ? {
-                  background: 'var(--accent-gradient)',
-                  color: '#ffffff',
-                  borderBottomRightRadius: '4px',
-                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
+                  background: isWritingMode ? 'rgba(140, 91, 47, 0.14)' : 'rgba(32, 107, 88, 0.12)',
+                  color: isWritingMode ? 'var(--accent-from)' : 'var(--text-accent)',
+                  border: '1px solid var(--border-default)',
                 }
               : {
-                  background: 'var(--msg-ai-bg, var(--bg-secondary))',
-                  border: '1px solid var(--msg-ai-border, var(--border-default))',
-                  color: 'var(--msg-ai-text, var(--text-primary))',
-                  borderBottomLeftRadius: '4px',
+                  background: 'var(--accent-gradient)',
+                  color: '#ffffff',
                 }
           }
         >
-          {isUser ? (
-            <div className="whitespace-pre-wrap break-words">{message.content}</div>
-          ) : (
-            <MarkdownRenderer content={message.content} />
-          )}
+          {isUser ? (isWritingMode ? '我' : '你') : (isWritingMode ? '稿' : 'AI')}
         </div>
 
-        {/* Action Bar */}
         <div
-          className={`flex items-center gap-1 mt-1.5 px-1 ${isUser ? 'flex-row-reverse' : ''}`}
+          className={`flex flex-col min-w-0 ${
+            isUser ? 'items-end text-right' : 'items-start text-left'
+          } ${isWritingMode && !isUser ? 'w-full' : ''}`}
         >
-          <span
-            className="text-xs"
-            style={{ color: 'var(--text-muted)', opacity: 0.5 }}
+          <div
+            className="text-xs font-medium mb-1.5 px-1"
+            style={{
+              color: isUser ? (isWritingMode ? 'var(--accent-from)' : 'var(--text-accent)') : 'var(--text-muted)',
+              opacity: 0.8,
+            }}
           >
-            {formatTimestamp(message.timestamp)}
-          </span>
+            {isUser ? (isWritingMode ? '你的要求' : '你') : (isWritingMode ? 'AI 生成内容' : 'AI 助手')}
+          </div>
 
-          {!isUser && message.content && (
-            <>
-              <span
-                className="text-xs mx-1"
-                style={{ color: 'var(--text-muted)', opacity: 0.2 }}
-              >
-                |
-              </span>
-              <button
-                onClick={handleCopy}
-                className="p-1 rounded-md transition-colors"
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-hover)';
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = 'var(--text-muted)';
-                }}
-                title={copied ? '已复制' : '复制消息'}
-              >
-                {copied ? (
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                )}
-              </button>
+          <div
+            className={`rounded-2xl px-3.5 py-3 sm:px-4 text-sm leading-relaxed ${
+              isWritingMode && !isUser ? 'writing-ai-response' : ''
+            }`}
+            style={
+              isUser
+                ? {
+                    background: isWritingMode ? 'linear-gradient(135deg, #8c5b2f, #b57a46)' : 'var(--msg-user-bg, var(--accent-gradient))',
+                    color: 'var(--msg-user-text, #ffffff)',
+                    border: isWritingMode ? '1px solid rgba(140, 91, 47, 0.18)' : 'none',
+                    borderBottomRightRadius: '4px',
+                    boxShadow: isWritingMode ? '0 10px 28px rgba(140, 91, 47, 0.16)' : '0 8px 24px rgba(66, 94, 83, 0.18)',
+                  }
+                : {
+                    background: 'var(--msg-ai-bg, var(--bg-secondary))',
+                    border: '1px solid var(--msg-ai-border, var(--border-default))',
+                    color: 'var(--msg-ai-text, var(--text-primary))',
+                    borderBottomLeftRadius: '4px',
+                    boxShadow: isWritingMode ? 'var(--shadow-sm)' : 'none',
+                  }
+            }
+          >
+            {isUser ? (
+              <div className={`whitespace-pre-wrap break-words ${isWritingMode ? 'writing-user-brief' : ''}`}>{message.content}</div>
+            ) : (
+              <MarkdownRenderer content={message.content} />
+            )}
+          </div>
 
-              {isLatest && onRegenerate && (
+          <div
+            className={`flex items-center gap-1 mt-1.5 px-1 ${isUser ? 'justify-end' : ''}`}
+          >
+            <span
+              className="text-xs"
+              style={{ color: 'var(--text-muted)', opacity: 0.5 }}
+            >
+              {formatTimestamp(message.timestamp)}
+            </span>
+
+            {!isUser && message.content && (
+              <>
+                <span
+                  className="text-xs mx-1"
+                  style={{ color: 'var(--text-muted)', opacity: 0.2 }}
+                >
+                  |
+                </span>
                 <button
-                  onClick={onRegenerate}
+                  onClick={handleCopy}
                   className="p-1 rounded-md transition-colors"
                   style={{ color: 'var(--text-muted)' }}
                   onMouseEnter={(e) => {
@@ -150,15 +132,42 @@ export function MessageBubble({ message, isLatest, onRegenerate }: MessageBubble
                     e.currentTarget.style.background = 'transparent';
                     e.currentTarget.style.color = 'var(--text-muted)';
                   }}
-                  title="重新生成"
+                  title={copied ? '已复制' : '复制消息'}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  {copied ? (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  )}
                 </button>
-              )}
-            </>
-          )}
+
+                {isLatest && onRegenerate && (
+                  <button
+                    onClick={onRegenerate}
+                    className="p-1 rounded-md transition-colors"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--bg-hover)';
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = 'var(--text-muted)';
+                    }}
+                    title="重新生成"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

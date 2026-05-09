@@ -6,9 +6,17 @@ interface MessageInputProps {
   onSendMessage: (content: string) => void;
   isLoading: boolean;
   onStop?: () => void;
+  placeholder?: string;
+  helperText?: string;
 }
 
-export function MessageInput({ onSendMessage, isLoading, onStop }: MessageInputProps) {
+export function MessageInput({
+  onSendMessage,
+  isLoading,
+  onStop,
+  placeholder = '输入消息，Shift+Enter 换行...',
+  helperText = 'AI 生成的内容可能不准确，请注意甄别',
+}: MessageInputProps) {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -34,32 +42,32 @@ export function MessageInput({ onSendMessage, isLoading, onStop }: MessageInputP
   };
 
   return (
-    <div className="max-w-3xl mx-auto w-full">
+    <div className="max-w-4xl mx-auto w-full">
       <div
-        className="flex items-end gap-2 rounded-2xl p-2 transition-all"
-        style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)' }}
+        className="flex items-end gap-2 rounded-[22px] px-2.5 py-2 transition-all sm:rounded-[24px] sm:p-2.5"
+        style={{ background: 'var(--input-bg)', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-sm)' }}
       >
         <textarea
           ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入消息，Shift+Enter 换行..."
+          placeholder={placeholder}
           disabled={isLoading}
-          className="flex-1 resize-none bg-transparent border-none outline-none text-sm leading-relaxed px-2 py-1.5"
-          style={{ color: 'var(--text-primary)', minHeight: '24px', maxHeight: '160px' }}
+          className="flex-1 resize-none bg-transparent border-none outline-none text-sm leading-relaxed px-2 py-2"
+          style={{ color: 'var(--text-primary)', minHeight: '24px', maxHeight: '180px' }}
           rows={1}
         />
         <div className="flex items-center gap-1.5 flex-shrink-0 pb-0.5">
           {message.length > 0 && (
-            <span className="text-xs tabular-nums px-1" style={{ color: message.length > 4000 ? '#ef4444' : 'var(--text-muted)' }}>
+            <span className="hidden sm:inline text-xs tabular-nums px-1" style={{ color: message.length > 4000 ? '#ef4444' : 'var(--text-muted)' }}>
               {message.length}
             </span>
           )}
           {isLoading ? (
             <button
               onClick={onStop}
-              className="p-2 rounded-xl transition-all flex items-center justify-center"
+              className="p-2.5 rounded-xl transition-all flex items-center justify-center touch-manipulation"
               style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}
               title="停止生成"
             >
@@ -69,7 +77,7 @@ export function MessageInput({ onSendMessage, isLoading, onStop }: MessageInputP
             <button
               onClick={handleSubmit}
               disabled={!message.trim()}
-              className="btn-gradient p-2 rounded-xl transition-all flex items-center justify-center disabled:opacity-30"
+              className="btn-gradient p-2.5 rounded-xl transition-all flex items-center justify-center disabled:opacity-30 touch-manipulation"
               title="发送消息"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -79,8 +87,8 @@ export function MessageInput({ onSendMessage, isLoading, onStop }: MessageInputP
           )}
         </div>
       </div>
-      <div className="text-center mt-2">
-        <span className="text-xs" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>AI 生成的内容可能不准确，请注意甄别</span>
+      <div className="mt-2 px-1 text-left sm:text-center">
+        <span className="text-[11px] sm:text-xs" style={{ color: 'var(--text-muted)', opacity: 0.72 }}>{helperText}</span>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ export function ModelSelector() {
   const { conversations, currentConversationId, updateConversation } = useAppStore();
   const [isOpen, setIsOpen] = useState(false);
   const currentConversation = conversations.find(c => c.id === currentConversationId);
-  const selectedModel = currentConversation?.model || 'gpt-5.4';
+  const selectedModel = currentConversation?.model || 'gpt-5.5';
   const currentModel = AVAILABLE_MODELS.find(m => m.id === selectedModel);
 
   const handleModelChange = (modelId: string) => {
@@ -29,9 +29,9 @@ export function ModelSelector() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all"
+        className="w-full flex items-center gap-2.5 px-3 py-3 rounded-2xl text-sm transition-all touch-manipulation"
         style={{
-          background: 'var(--bg-primary)',
+          background: 'var(--panel-surface)',
           border: '1px solid var(--border-default)',
           color: 'var(--text-secondary)',
         }}
@@ -60,9 +60,9 @@ export function ModelSelector() {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
           <div
-            className="absolute left-0 right-0 mt-1 rounded-xl overflow-hidden z-20 animate-slide-up"
+            className="absolute left-0 right-0 mt-1 rounded-2xl overflow-hidden z-20 animate-slide-up"
             style={{
-              background: 'var(--bg-elevated)',
+              background: 'var(--panel-surface)',
               border: '1px solid var(--border-default)',
               boxShadow: 'var(--shadow-lg)',
             }}
@@ -71,9 +71,9 @@ export function ModelSelector() {
               <button
                 key={model.id}
                 onClick={() => handleModelChange(model.id)}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-3 text-left transition-colors touch-manipulation"
                 style={{
-                  background: model.id === selectedModel ? 'rgba(124, 58, 237, 0.1)' : 'transparent',
+                  background: model.id === selectedModel ? 'var(--panel-muted)' : 'transparent',
                   color: model.id === selectedModel ? 'var(--text-accent)' : 'var(--text-secondary)',
                 }}
                 onMouseEnter={(e) => {

@@ -3,7 +3,7 @@ import { Message, ChatState } from '@/types';
 import { generateId } from '@/lib/utils';
 
 interface ChatStore extends ChatState {
-  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
+  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => Message;
   updateLastMessage: (content: string) => void;
   replaceLastMessage: (content: string) => void;
   removeLastMessage: () => void;
@@ -22,13 +22,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   error: null,
   abortController: null,
 
-  addMessage: (message) => set((state) => ({
-    messages: [...state.messages, {
+  addMessage: (message) => {
+    const nextMessage: Message = {
       ...message,
       id: generateId(),
       timestamp: Date.now(),
-    }],
-  })),
+    };
+
+    set((state) => ({
+      messages: [...state.messages, nextMessage],
+    }));
+
+    return nextMessage;
+  },
 
   updateLastMessage: (content) => set((state) => {
     const messages = [...state.messages];

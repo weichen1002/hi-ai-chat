@@ -4,24 +4,20 @@ import { useEffect } from 'react';
 import { useAppStore } from '@/stores/app-store';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { theme, setTheme } = useAppStore();
+  const { theme, activeMode, setTheme } = useAppStore();
 
   useEffect(() => {
-    // 从localStorage读取保存的主题
-    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    } else {
-      // 检测系统主题偏好
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setTheme(prefersDark ? 'dark' : 'light');
+    const savedTheme = localStorage.getItem('theme');
+    const nextTheme = savedTheme === 'dark' ? 'dark' : 'light';
+
+    if (theme !== nextTheme) {
+      setTheme(nextTheme);
     }
-  }, [setTheme]);
+  }, [setTheme, theme]);
 
   useEffect(() => {
-    // 应用主题到document
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-app-mode', activeMode);
+  }, [activeMode]);
 
   return <>{children}</>;
 }

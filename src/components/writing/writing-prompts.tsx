@@ -4,91 +4,86 @@ import { WritingPrompt } from '@/types';
 
 const WRITING_PROMPTS: WritingPrompt[] = [
   {
-    id: 'novel',
-    title: '小说创作',
-    description: '创作一个完整的故事，包含人物、情节和结局',
-    icon: '📖',
-    prompt: '你是一位专业的小说作家。请根据以下主题创作一个完整的小说故事：\n\n主题：{topic}\n\n要求：\n1. 包含引人入胜的开头\n2. 塑造鲜明的人物形象\n3. 构建曲折的情节\n4. 设计令人满意的结局\n5. 字数不少于1000字',
-    category: 'fiction',
+    id: 'find-direction',
+    title: '帮我找方向',
+    description: '从一个模糊想法里拆出几个可继续追问的写作方向',
+    icon: '🧭',
+    prompt: '我还没想清楚要写什么。请先根据常见创作目标，给我 5 个不同方向，并说明每个方向适合什么场景、优缺点，以及我接下来该怎么继续提问。',
+    category: 'strategy',
   },
   {
-    id: 'short-story',
-    title: '短篇故事',
-    description: '创作一个精炼的短篇故事',
-    icon: '📝',
-    prompt: '你是一位擅长短篇故事的作家。请根据以下主题创作一个短篇故事：\n\n主题：{topic}\n\n要求：\n1. 故事简洁有力\n2. 情节紧凑\n3. 结尾有深意\n4. 字数在500-800字之间',
-    category: 'fiction',
+    id: 'build-outline',
+    title: '先搭骨架',
+    description: '把零散想法整理成结构、大纲或可执行清单',
+    icon: '🗂️',
+    prompt: '我有一些零散想法，但还没有结构。请先像编辑一样向我追问 3 到 5 个关键问题，然后基于我的回答帮我整理成一个清晰的大纲。',
+    category: 'structure',
   },
   {
-    id: 'poem',
-    title: '诗歌创作',
-    description: '创作一首优美的诗歌',
+    id: 'rewrite-tone',
+    title: '换个语气写',
+    description: '同一段内容试几个不同风格，便于比较和调试',
     icon: '🎭',
-    prompt: '你是一位才华横溢的诗人。请根据以下主题创作一首诗歌：\n\n主题：{topic}\n\n要求：\n1. 语言优美凝练\n2. 意境深远\n3. 情感真挚\n4. 形式自由或遵循特定诗体',
-    category: 'poetry',
+    prompt: '我想反复试不同写法。等我贴出内容后，请给我至少 3 个明显不同的版本，并解释每个版本的语气、节奏和适用场景。',
+    category: 'rewrite',
   },
   {
-    id: 'article',
-    title: '文章写作',
-    description: '撰写一篇结构完整的文章',
-    icon: '📰',
-    prompt: '你是一位资深的文章写作者。请根据以下主题撰写一篇文章：\n\n主题：{topic}\n\n要求：\n1. 结构清晰，包含引言、正文和结论\n2. 论点明确，论据充分\n3. 语言流畅，逻辑严密\n4. 字数在800-1200字之间',
-    category: 'non-fiction',
+    id: 'continue-writing',
+    title: '边写边试',
+    description: '适合续写、补段落、改句子，边走边调',
+    icon: '✍️',
+    prompt: '接下来我会一段一段地给你内容。你先不要一次性写很长，而是按“先理解目标，再给短版本，再根据我反馈迭代”的方式和我一起写。',
+    category: 'iteration',
   },
   {
-    id: 'script',
-    title: '剧本创作',
-    description: '创作一个剧本或对话脚本',
-    icon: '🎬',
-    prompt: '你是一位专业的剧本作家。请根据以下主题创作一个剧本：\n\n主题：{topic}\n\n要求：\n1. 包含场景描述\n2. 人物对话生动\n3. 情节发展合理\n4. 适合舞台或影视表演',
-    category: 'script',
+    id: 'compare-options',
+    title: '帮我做取舍',
+    description: '当你有多个版本、多条线索或多个方向时帮你比较',
+    icon: '⚖️',
+    prompt: '我可能会给你几个不同版本或不同思路。请不要直接替我拍板，而是先帮我逐项比较它们的优劣、风险和适用场景，再给出建议。',
+    category: 'decision',
   },
 ];
 
 interface WritingPromptsProps {
   onSelect: (prompt: WritingPrompt) => void;
-  selectedId?: string;
 }
 
-export function WritingPrompts({ onSelect, selectedId }: WritingPromptsProps) {
+export function WritingPrompts({ onSelect }: WritingPromptsProps) {
   const gradients = [
-    'linear-gradient(135deg, #7c3aed20, #2563eb20)',
-    'linear-gradient(135deg, #ec489920, #f9731620)',
-    'linear-gradient(135deg, #10b98120, #06b6d420)',
-    'linear-gradient(135deg, #f59e0b20, #ef444420)',
-    'linear-gradient(135deg, #8b5cf620, #ec489920)',
+    'linear-gradient(135deg, rgba(45, 98, 86, 0.16), rgba(177, 221, 209, 0.28))',
+    'linear-gradient(135deg, rgba(52, 83, 133, 0.14), rgba(171, 199, 236, 0.24))',
+    'linear-gradient(135deg, rgba(104, 68, 126, 0.14), rgba(215, 191, 228, 0.24))',
+    'linear-gradient(135deg, rgba(124, 91, 45, 0.14), rgba(233, 210, 167, 0.24))',
+    'linear-gradient(135deg, rgba(91, 91, 91, 0.12), rgba(221, 221, 221, 0.2))',
   ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       {WRITING_PROMPTS.map((prompt, index) => {
-        const isSelected = selectedId === prompt.id;
         return (
           <button
             key={prompt.id}
-            className="text-left p-4 rounded-xl transition-all"
+            className="text-left p-4 rounded-2xl transition-all"
             style={{
-              background: isSelected ? gradients[index] : 'var(--bg-tertiary)',
-              border: isSelected ? '1px solid var(--border-active)' : '1px solid var(--border-default)',
-              boxShadow: isSelected ? 'var(--shadow-glow)' : 'none',
+              background: gradients[index % gradients.length],
+              border: '1px solid var(--border-default)',
             }}
             onClick={() => onSelect(prompt)}
             onMouseEnter={(e) => {
-              if (!isSelected) {
-                e.currentTarget.style.borderColor = 'var(--border-hover)';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }
+              e.currentTarget.style.borderColor = 'var(--border-hover)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-md)';
             }}
             onMouseLeave={(e) => {
-              if (!isSelected) {
-                e.currentTarget.style.borderColor = 'var(--border-default)';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }
+              e.currentTarget.style.borderColor = 'var(--border-default)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
             }}
           >
             <span className="text-2xl block mb-2">{prompt.icon}</span>
             <h3 className="font-medium text-sm mb-1" style={{ color: 'var(--text-primary)' }}>{prompt.title}</h3>
-            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{prompt.description}</p>
+            <p className="text-xs leading-5" style={{ color: 'var(--text-secondary)' }}>{prompt.description}</p>
           </button>
         );
       })}

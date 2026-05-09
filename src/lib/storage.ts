@@ -1,6 +1,11 @@
 import { Conversation } from '@/types';
 
 const STORAGE_KEY = 'hi-ai-chat-conversations';
+const SESSION_KEY = 'hi-ai-chat-session';
+
+interface PersistedSession {
+  currentConversationId: string | null;
+}
 
 export function saveConversations(conversations: Conversation[]): void {
   if (typeof window === 'undefined') return;
@@ -16,7 +21,12 @@ export function loadConversations(): Conversation[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
-    return JSON.parse(stored);
+    const parsed = JSON.parse(stored) as Conversation[];
+    return parsed.map((conversation) => ({
+      ...conversation,
+      model: conversation.model || 'gpt-5.5',
+      mode: conversation.mode === 'writing' || conversation.mode === 'novel' ? 'writing' : 'chat',
+    }));
   } catch (error) {
     console.error('加载对话失败:', error);
     return [];
@@ -47,5 +57,28 @@ export function updateConversation(updated: Conversation): void {
     saveConversations(conversations);
   } catch (error) {
     console.error('更新对话失败:', error);
+  }
+}
+
+export function saveCurrentConversationId(currentConversationId: string | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const session: PersistedSession = { currentConversationId };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch (error) {
+    console.error('保存会话状态失败:', error);
+  }
+}
+
+export function loadCurrentConversationId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(SESSION_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as PersistedSession;
+    return typeof parsed.currentConversationId === 'string' ? parsed.currentConversationId : null;
+  } catch (error) {
+    console.error('加载会话状态失败:', error);
+    return null;
   }
 }

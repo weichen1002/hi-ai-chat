@@ -1,49 +1,48 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
 import { sendChatMessage } from '@/lib/api';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageInput } from '@/components/chat/message-input';
 import { WritingPrompts } from './writing-prompts';
-import { WritingPrompt } from '@/types';
+import { generateConversationTitle } from '@/lib/utils';
 
 interface WritingContainerProps {
   conversationId: string | null;
 }
 
 export function WritingContainer({ conversationId }: WritingContainerProps) {
-  const [selectedPrompt, setSelectedPrompt] = useState<WritingPrompt | null>(null);
-  const [topic, setTopic] = useState('');
-  const [showPrompts, setShowPrompts] = useState(true);
   const {
     messages, isLoading, error,
     addMessage, updateLastMessage, removeLastMessage,
     setLoading, setError, setMessages,
     setAbortController, stopGeneration,
   } = useChatStore();
-  const { conversations, addMessageToConversation, updateConversation } = useAppStore();
+  const { conversations, addMessageToConversation, updateConversation, setSidebarOpen } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const currentConversation = conversations.find(c => c.id === conversationId);
+  const currentConversation = conversations.find((conversation) => conversation.id === conversationId);
+  const panelWidthClass = 'max-w-3xl';
+  const showPrompts = messages.length === 0;
+  const headlineIcon = '✍️';
+  const headlineTitle = '写作模式';
+  const headlineDescription = '像和编辑搭档一样，一边问、一边试、一边改，不用先想清楚全部方向。';
+  const followupPlaceholder = '把你现在在想什么、卡在哪，或一小段草稿直接发给我...';
+  const helperText = '可以很模糊地开口，比如“我想写点东西，但还没想好方向”。';
 
-  // 从 conversation 加载消息
   useEffect(() => {
+    if (isLoading) return;
+
     if (currentConversation) {
-      const filteredMessages = currentConversation.messages.filter(m => m.role !== 'system');
+      const filteredMessages = currentConversation.messages.filter((message) => message.role !== 'system');
       setMessages(filteredMessages);
-      // 如果有消息，隐藏提示词选择
-      if (filteredMessages.length > 0) {
-        setShowPrompts(false);
-      }
     } else {
       setMessages([]);
-      setShowPrompts(true);
     }
-  }, [conversationId, currentConversation, setMessages]);
+  }, [currentConversation, isLoading, setMessages]);
 
-  // 自动滚动
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -51,8 +50,8 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
   const doSendMessage = useCallback(async (allMessages: { role: string; content: string }[], model: string) => {
     if (!conversationId) return;
 
-    const assistantMessage = { role: 'assistant' as const, content: '', model };
-    addMessage(assistantMessage);
+    const assistantMessage = addMessage({ role: 'assistant' as const, content: '', model });
+    addMessageToConversation(conversationId, assistantMessage);
     setLoading(true);
     setError(null);
 
@@ -67,62 +66,53 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         setLoading(false);
         setAbortController(null);
         const updatedMessages = useChatStore.getState().messages;
-        const conv = useAppStore.getState().conversations.find(c => c.id === conversationId);
+        const latestConversation = useAppStore.getState().conversations.find((conversation) => conversation.id === conversationId);
+
         updateConversation(conversationId, {
           messages: updatedMessages,
-          title: conv?.title === '新对话'
-            ? `写作: ${topic.substring(0, 15)}${topic.length > 15 ? '...' : ''}`
-            : conv?.title,
+          title: latestConversation?.title === '新对话'
+            ? `写作: ${generateConversationTitle(updatedMessages)}`
+            : latestConversation?.title,
         });
       },
       (errorMessage) => {
+        const updatedMessages = useChatStore.getState().messages;
         setError(errorMessage);
         setLoading(false);
         setAbortController(null);
+        updateConversation(conversationId, { messages: updatedMessages });
       },
       controller.signal,
     );
-  }, [conversationId, topic, addMessage, updateLastMessage, setLoading, setError, setAbortController, updateConversation]);
-
-  const handleStartWriting = useCallback(async () => {
-    if (!conversationId || !currentConversation || !selectedPrompt || !topic.trim()) return;
-
-    const systemContent = selectedPrompt.prompt.replace('{topic}', topic);
-    const userContent = `请帮我写一篇关于"${topic}"的${selectedPrompt.title}`;
-
-    const userMessage = { role: 'user' as const, content: userContent, model: currentConversation.model };
-    addMessage(userMessage);
-    addMessageToConversation(conversationId, userMessage);
-
-    setShowPrompts(false);
-
-    await doSendMessage(
-      [{ role: 'system', content: systemContent }, ...messages, userMessage],
-      currentConversation.model,
-    );
-  }, [conversationId, currentConversation, selectedPrompt, topic, messages, addMessage, addMessageToConversation, doSendMessage]);
+  }, [conversationId, addMessage, addMessageToConversation, updateLastMessage, setLoading, setError, setAbortController, updateConversation]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!conversationId || !currentConversation) return;
 
-    const userMessage = { role: 'user' as const, content, model: currentConversation.model };
-    addMessage(userMessage);
+    const userMessage = addMessage({ role: 'user' as const, content, model: currentConversation.model });
     addMessageToConversation(conversationId, userMessage);
 
-    await doSendMessage([...messages, userMessage], currentConversation.model);
+    await doSendMessage(
+      [...messages, userMessage].map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      currentConversation.model,
+    );
   }, [conversationId, currentConversation, messages, addMessage, addMessageToConversation, doSendMessage]);
 
   const handleRegenerate = useCallback(async () => {
     if (!conversationId || !currentConversation || messages.length < 2) return;
 
     removeLastMessage();
-    const msgsWithoutLast = useChatStore.getState().messages;
+    const messagesWithoutLast = useChatStore.getState().messages;
+    updateConversation(conversationId, { messages: messagesWithoutLast });
 
     await doSendMessage(
-      msgsWithoutLast.map(m => ({ role: m.role, content: m.content })),
+      messagesWithoutLast.map((message) => ({ role: message.role, content: message.content })),
       currentConversation.model,
     );
-  }, [conversationId, currentConversation, messages, removeLastMessage, doSendMessage]);
+  }, [conversationId, currentConversation, messages.length, removeLastMessage, doSendMessage, updateConversation]);
 
   const handleStop = useCallback(() => {
     stopGeneration();
@@ -134,63 +124,84 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
 
   const handleNewWriting = useCallback(() => {
     setMessages([]);
-    setSelectedPrompt(null);
-    setTopic('');
-    setShowPrompts(true);
-  }, [setMessages]);
+    setError(null);
+    if (conversationId) {
+      updateConversation(conversationId, {
+        messages: [],
+        title: '新对话',
+      });
+    }
+  }, [conversationId, setMessages, setError, updateConversation]);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Model indicator bar */}
+    <div className="flex h-full min-h-0 flex-col">
       <div
-        className="flex items-center justify-center py-2 text-xs"
-        style={{ borderBottom: '1px solid var(--border-default)', color: 'var(--text-muted)' }}
+        className="px-4 py-3 sm:px-6"
+        style={{
+          borderBottom: '1px solid var(--border-default)',
+          background: 'var(--topbar-bg)',
+        }}
       >
-        <span>模型: {currentConversation?.model || 'GPT-5.4'}</span>
+        <div className={`${panelWidthClass} mx-auto flex flex-col gap-3`}>
+          <div className="mobile-titlebar sm:hidden">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="mobile-titlebar__menu"
+              aria-label="打开菜单"
+            >
+              <svg className="h-[1.05rem] w-[1.05rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M4 7h16M4 12h16M4 17h10" />
+              </svg>
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="text-[0.68rem] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+                {headlineTitle}
+              </div>
+              <div className="truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                写作
+              </div>
+            </div>
+            <div className="rounded-full px-2.5 py-1 text-[0.68rem]" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
+              {currentConversation?.model || 'gpt-5.5'}
+            </div>
+          </div>
+
+          <div className="hidden min-w-0 sm:flex sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
+              <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.22em]" style={{ color: 'var(--text-muted)' }}>
+                <span>{headlineIcon}</span>
+                <span>{headlineTitle}</span>
+              </div>
+              <h2 className="text-xl font-semibold sm:text-2xl" style={{ color: 'var(--text-primary)' }}>
+                更像和编辑搭档的写作工作台
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
+                {headlineDescription}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-xs" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
+              <span>模型</span>
+              <span style={{ color: 'var(--text-primary)' }}>{currentConversation?.model || 'gpt-5.5'}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-3xl mx-auto">
+      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-7">
+        <div className={`${panelWidthClass} mx-auto`}>
           {showPrompts ? (
             <div className="space-y-6 animate-fade-in">
-              <div className="text-center">
-                <span className="text-4xl block mb-3">✍️</span>
-                <h2 className="text-2xl font-bold gradient-text mb-2">写作专家模式</h2>
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>选择写作类型，输入主题，开始创作</p>
+              <div className="rounded-[28px] border px-5 py-6 sm:px-7" style={{ background: 'var(--panel-surface)', borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-md)' }}>
+                <div className="mb-3 text-4xl">{headlineIcon}</div>
+                <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: 'var(--text-primary)' }}>
+                  先把你脑子里现在那一点点想法说出来
+                </h3>
+                <p className="mt-3 max-w-2xl text-sm leading-7 sm:text-[15px]" style={{ color: 'var(--text-secondary)' }}>
+                  不用先决定题材、体裁或完整结构。你可以先要方向、要提问、要几个版本，再慢慢收敛。
+                </p>
               </div>
 
-              <WritingPrompts onSelect={setSelectedPrompt} selectedId={selectedPrompt?.id} />
-
-              {selectedPrompt && (
-                <div className="space-y-4 animate-slide-up">
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>写作主题</label>
-                    <input
-                      type="text"
-                      value={topic}
-                      onChange={(e) => setTopic(e.target.value)}
-                      placeholder={`请输入${selectedPrompt.title}的主题`}
-                      className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
-                      style={{
-                        background: 'var(--bg-tertiary)',
-                        border: '1px solid var(--border-default)',
-                        color: 'var(--text-primary)',
-                      }}
-                      onFocus={(e) => { e.target.style.borderColor = 'var(--border-active)'; e.target.style.boxShadow = 'var(--shadow-glow)'; }}
-                      onBlur={(e) => { e.target.style.borderColor = 'var(--border-default)'; e.target.style.boxShadow = 'none'; }}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && topic.trim()) handleStartWriting(); }}
-                    />
-                  </div>
-                  <button
-                    onClick={handleStartWriting}
-                    disabled={!topic.trim() || isLoading}
-                    className="btn-gradient w-full py-3 rounded-xl text-sm font-medium"
-                  >
-                    {isLoading ? '生成中...' : '开始写作'}
-                  </button>
-                </div>
-              )}
+              <WritingPrompts onSelect={(prompt) => { void handleSendMessage(prompt.prompt); }} />
             </div>
           ) : (
             <>
@@ -206,11 +217,10 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         </div>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="px-4 py-2 text-sm animate-slide-up" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
-          <div className="max-w-3xl mx-auto flex items-center gap-2">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="px-4 py-2 text-sm animate-slide-up" style={{ background: 'rgba(185, 28, 28, 0.08)', color: '#b91c1c' }}>
+          <div className={`${panelWidthClass} mx-auto flex items-center gap-2`}>
+            <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             {error}
@@ -218,23 +228,36 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         </div>
       )}
 
-      {/* Input area */}
-      {!showPrompts && (
-        <div className="p-4" style={{ borderTop: '1px solid var(--border-default)' }}>
-          <div className="max-w-3xl mx-auto">
-            <div className="flex gap-2 mb-2">
+      <div
+        className="px-3 pt-3 sm:px-6"
+        style={{
+          borderTop: '1px solid var(--border-default)',
+          background: 'var(--topbar-bg)',
+          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))',
+        }}
+      >
+        <div className={`${panelWidthClass} mx-auto`}>
+          {!showPrompts && (
+            <div className="mb-2 flex gap-2">
               <button
                 onClick={handleNewWriting}
-                className="px-3 py-1.5 rounded-lg text-xs transition-colors"
-                style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                className="rounded-full px-3 py-1.5 text-xs transition-colors"
+                style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
               >
                 新写作
               </button>
             </div>
-            <MessageInput onSendMessage={handleSendMessage} isLoading={isLoading} onStop={handleStop} />
-          </div>
+          )}
+
+          <MessageInput
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            onStop={handleStop}
+            placeholder={followupPlaceholder}
+            helperText={showPrompts ? helperText : '按 Enter 发送，Shift+Enter 换行。'}
+          />
         </div>
-      )}
+      </div>
     </div>
   );
 }
