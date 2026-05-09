@@ -24,7 +24,7 @@ export const useAppStore = create<AppStore>((set) => ({
   currentConversationId: null,
   isLoading: false,
   error: null,
-  sidebarOpen: true,
+  sidebarOpen: false,
   activeMode: 'chat' as 'chat' | 'writing',
   theme: 'dark' as 'dark' | 'light',
 

@@ -447,6 +447,39 @@ body {
   font-size: 0.8125rem !important;
 }
 
+/* ===== Message Bubbles ===== */
+.user-message-group {
+  margin-bottom: 24px;
+}
+
+.ai-message-group {
+  margin-bottom: 24px;
+}
+
+/* Divider between user and AI messages */
+.message-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 16px;
+  opacity: 0.3;
+}
+
+.message-divider::before,
+.message-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+
+.message-divider .divider-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
 /* ===== Typing Indicator ===== */
 .typing-indicator {
   display: flex;

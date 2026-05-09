@@ -1,0 +1,57 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Hi
+      - generic [ref=e6]:
+        - heading "Hi AI Chat" [level=1] [ref=e7]
+        - paragraph [ref=e8]: 智能对话平台
+    - button "新对话" [active] [ref=e10] [cursor=pointer]:
+      - img [ref=e11]
+      - text: 新对话
+    - generic [ref=e14]:
+      - button "对话" [ref=e15]:
+        - img [ref=e16]
+        - text: 对话
+      - button "写作" [ref=e18]:
+        - img [ref=e19]
+        - text: 写作
+    - button "🚀 GPT-5.4" [ref=e23]:
+      - generic [ref=e24]: 🚀
+      - generic [ref=e25]: GPT-5.4
+      - img [ref=e26]
+    - generic [ref=e29]:
+      - generic [ref=e30]: 💬
+      - paragraph [ref=e31]: 暂无对话记录
+    - button "切换到浅色模式" [ref=e33]:
+      - img [ref=e34]
+      - text: 浅色模式
+  - main [ref=e37]:
+    - generic [ref=e38]:
+      - generic [ref=e40]: "模型: GPT-4"
+      - generic [ref=e44]:
+        - generic [ref=e45]: ✨
+        - heading "有什么可以帮你的？" [level=2] [ref=e46]
+        - paragraph [ref=e47]: 我是你的 AI 助手，可以回答问题、写代码、创作内容，以及更多
+        - generic [ref=e48]:
+          - button "💡 解释概念 请用简单的方式解释一下什么是量子计算..." [ref=e49]:
+            - generic [ref=e50]: 💡
+            - generic [ref=e51]: 解释概念
+            - generic [ref=e52]: 请用简单的方式解释一下什么是量子计算...
+          - button "📝 写一篇文章 帮我写一篇关于人工智能发展趋势的短文..." [ref=e53]:
+            - generic [ref=e54]: 📝
+            - generic [ref=e55]: 写一篇文章
+            - generic [ref=e56]: 帮我写一篇关于人工智能发展趋势的短文...
+          - button "🐛 调试代码 帮我分析并修复以下代码中的bug..." [ref=e57]:
+            - generic [ref=e58]: 🐛
+            - generic [ref=e59]: 调试代码
+            - generic [ref=e60]: 帮我分析并修复以下代码中的bug...
+          - button "🎨 创意灵感 给我提供5个有创意的移动应用开发点子..." [ref=e61]:
+            - generic [ref=e62]: 🎨
+            - generic [ref=e63]: 创意灵感
+            - generic [ref=e64]: 给我提供5个有创意的移动应用开发点子...
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - textbox "输入消息，Shift+Enter 换行..." [ref=e68]
+          - button "发送消息" [disabled] [ref=e70]:
+            - img [ref=e71]
+        - generic [ref=e73]: AI 生成的内容可能不准确，请注意甄别

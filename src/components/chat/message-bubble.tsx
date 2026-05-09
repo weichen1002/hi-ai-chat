@@ -28,50 +28,90 @@ export function MessageBubble({ message, isLatest, onRegenerate }: MessageBubble
   if (message.role === 'system') return null;
 
   return (
-    <div className={`flex gap-3 animate-slide-up ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+    <div
+      className={`flex gap-3 animate-slide-up ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+      style={{ marginBottom: '24px' }}
+    >
       {/* Avatar */}
-      {!isUser && (
-        <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold text-white"
-          style={{ background: 'var(--accent-gradient)' }}
-        >
-          AI
-        </div>
-      )}
+      <div
+        className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold mt-1"
+        style={
+          isUser
+            ? {
+                background: 'rgba(124, 58, 237, 0.15)',
+                color: '#a78bfa',
+                border: '1px solid rgba(124, 58, 237, 0.2)',
+              }
+            : {
+                background: 'var(--accent-gradient)',
+                color: '#ffffff',
+              }
+        }
+      >
+        {isUser ? '你' : 'AI'}
+      </div>
 
       {/* Message Content */}
-      <div className={`max-w-[80%] min-w-0 ${isUser ? 'flex flex-col items-end' : ''}`}>
+      <div
+        className={`flex flex-col min-w-0 ${isUser ? 'items-end' : 'items-start'}`}
+        style={{ maxWidth: '75%' }}
+      >
+        {/* Role Label */}
         <div
-          className={`rounded-2xl px-4 py-3 text-sm ${isUser ? 'user-bubble' : 'ai-bubble'}`}
-          style={isUser ? {
-            background: 'var(--msg-user-bg, var(--accent-gradient))',
-            color: 'var(--msg-user-text, #ffffff)',
-            borderBottomRightRadius: '4px',
-            boxShadow: '0 2px 8px rgba(124, 58, 237, 0.2)',
-          } : {
-            background: 'var(--msg-ai-bg, var(--bg-secondary))',
-            border: '1px solid var(--msg-ai-border, var(--border-default))',
-            color: 'var(--msg-ai-text, var(--text-primary))',
-            borderBottomLeftRadius: '4px',
+          className="text-xs font-medium mb-1.5 px-1"
+          style={{
+            color: isUser ? '#a78bfa' : 'var(--text-muted)',
+            opacity: 0.8,
           }}
         >
+          {isUser ? '你' : 'AI 助手'}
+        </div>
+
+        {/* Bubble */}
+        <div
+          className="rounded-2xl px-4 py-3 text-sm leading-relaxed"
+          style={
+            isUser
+              ? {
+                  background: 'var(--accent-gradient)',
+                  color: '#ffffff',
+                  borderBottomRightRadius: '4px',
+                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.25)',
+                }
+              : {
+                  background: 'var(--msg-ai-bg, var(--bg-secondary))',
+                  border: '1px solid var(--msg-ai-border, var(--border-default))',
+                  color: 'var(--msg-ai-text, var(--text-primary))',
+                  borderBottomLeftRadius: '4px',
+                }
+          }
+        >
           {isUser ? (
-            <div className="whitespace-pre-wrap break-words leading-relaxed">
-              {message.content}
-            </div>
+            <div className="whitespace-pre-wrap break-words">{message.content}</div>
           ) : (
             <MarkdownRenderer content={message.content} />
           )}
         </div>
 
         {/* Action Bar */}
-        <div className={`flex items-center gap-1 mt-1.5 ${isUser ? 'flex-row-reverse' : ''}`}>
-          <span className="text-xs px-1" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+        <div
+          className={`flex items-center gap-1 mt-1.5 px-1 ${isUser ? 'flex-row-reverse' : ''}`}
+        >
+          <span
+            className="text-xs"
+            style={{ color: 'var(--text-muted)', opacity: 0.5 }}
+          >
             {formatTimestamp(message.timestamp)}
           </span>
 
           {!isUser && message.content && (
             <>
+              <span
+                className="text-xs mx-1"
+                style={{ color: 'var(--text-muted)', opacity: 0.2 }}
+              >
+                |
+              </span>
               <button
                 onClick={handleCopy}
                 className="p-1 rounded-md transition-colors"
@@ -121,19 +161,6 @@ export function MessageBubble({ message, isLatest, onRegenerate }: MessageBubble
           )}
         </div>
       </div>
-
-      {/* User Avatar */}
-      {isUser && (
-        <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold"
-          style={{
-            background: 'rgba(124, 58, 237, 0.15)',
-            color: '#a78bfa',
-          }}
-        >
-          你
-        </div>
-      )}
     </div>
   );
 }
