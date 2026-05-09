@@ -27,7 +27,10 @@ export function MessageInput({
     }
   }, [message]);
 
-  useEffect(() => { textareaRef.current?.focus(); }, []);
+  // 自动聚焦
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   const handleSubmit = () => {
     if (message.trim() && !isLoading) {

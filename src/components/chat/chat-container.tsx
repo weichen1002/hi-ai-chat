@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useChatStore } from '@/stores/chat-store';
 import { useAppStore } from '@/stores/app-store';
 import { MessageList } from './message-list';
@@ -20,6 +20,7 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
   } = useChatStore();
   const { conversations, addMessageToConversation, updateConversation, setSidebarOpen } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [inputCollapsed, setInputCollapsed] = useState(false);
 
   const currentConversation = conversations.find(c => c.id === conversationId);
 
@@ -115,49 +116,58 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      {/* 顶部区域 — 折叠时隐藏 */}
       <div
-        className="px-4 py-3 sm:px-6"
-        style={{ borderBottom: '1px solid var(--border-default)', background: 'var(--topbar-bg)' }}
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{
+          maxHeight: inputCollapsed ? '0px' : '200px',
+          opacity: inputCollapsed ? 0 : 1,
+        }}
       >
-        <div className="mx-auto flex max-w-4xl flex-col gap-3">
-          <div className="mobile-titlebar sm:hidden">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="mobile-titlebar__menu"
-              aria-label="打开菜单"
-            >
-              <svg className="h-[1.05rem] w-[1.05rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M4 7h16M4 12h16M4 17h10" />
-              </svg>
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="text-[0.68rem] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
-                Chat Mode
+        <div
+          className="px-4 py-3 sm:px-6"
+          style={{ borderBottom: '1px solid var(--border-default)', background: 'var(--topbar-bg)' }}
+        >
+          <div className="mx-auto flex max-w-4xl flex-col gap-3">
+            <div className="mobile-titlebar sm:hidden">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="mobile-titlebar__menu"
+                aria-label="打开菜单"
+              >
+                <svg className="h-[1.05rem] w-[1.05rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M4 7h16M4 12h16M4 17h10" />
+                </svg>
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="text-[0.68rem] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+                  Chat Mode
+                </div>
+                <div className="truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  对话
+                </div>
               </div>
-              <div className="truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                对话
+              <div className="rounded-full px-2.5 py-1 text-[0.68rem]" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
+                {currentConversation?.model || 'gpt-5.5'}
               </div>
             </div>
-            <div className="rounded-full px-2.5 py-1 text-[0.68rem]" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
-              {currentConversation?.model || 'gpt-5.5'}
-            </div>
-          </div>
 
-          <div className="hidden min-w-0 sm:flex sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0">
-              <div className="mb-1 text-xs uppercase tracking-[0.22em]" style={{ color: 'var(--text-muted)' }}>
-                Chat Mode
+            <div className="hidden min-w-0 sm:flex sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <div className="mb-1 text-xs uppercase tracking-[0.22em]" style={{ color: 'var(--text-muted)' }}>
+                  Chat Mode
+                </div>
+                <h2 className="text-xl font-semibold sm:text-2xl" style={{ color: 'var(--text-primary)' }}>
+                  更适合长聊与灵感整理
+                </h2>
+                <p className="mt-1 text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
+                  配色和留白已经调整成更柔和的阅读体验，手机上也更容易单手使用。
+                </p>
               </div>
-              <h2 className="text-xl font-semibold sm:text-2xl" style={{ color: 'var(--text-primary)' }}>
-                更适合长聊与灵感整理
-              </h2>
-              <p className="mt-1 text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
-                配色和留白已经调整成更柔和的阅读体验，手机上也更容易单手使用。
-              </p>
-            </div>
-            <div className="flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-xs" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
-              <span>模型</span>
-              <span style={{ color: 'var(--text-primary)' }}>{currentConversation?.model || 'gpt-5.5'}</span>
+              <div className="flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-xs" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
+                <span>模型</span>
+                <span style={{ color: 'var(--text-primary)' }}>{currentConversation?.model || 'gpt-5.5'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -186,21 +196,49 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
         </div>
       )}
 
+      {/* 底部输入区域 — 折叠/展开控制 */}
       <div
-        className="px-3 pt-3 sm:px-6"
+        className="px-3 pt-1.5 sm:px-6 transition-all duration-300 ease-in-out"
         style={{
-          borderTop: '1px solid var(--border-default)',
+          borderTop: inputCollapsed ? 'none' : '1px solid var(--border-default)',
           background: 'var(--topbar-bg)',
-          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))',
+          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
         }}
       >
-        <MessageInput
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-          onStop={handleStop}
-          placeholder="输入你的问题、灵感，或者让它帮你继续完善设定..."
-          helperText="支持连续追问、改写和补充上下文。"
-        />
+        <div className="max-w-4xl mx-auto">
+          <div className={`flex items-center justify-end mb-1 transition-opacity duration-300 ${inputCollapsed ? 'opacity-100' : 'opacity-100'}`}>
+            <button
+              onClick={() => setInputCollapsed(!inputCollapsed)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-all hover:opacity-80"
+              style={{ color: 'var(--text-muted)', opacity: 0.4 }}
+              title={inputCollapsed ? '展开输入区域' : '折叠输入区域'}
+            >
+              <svg
+                className="w-3 h-3 transition-transform duration-300"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                style={{ transform: inputCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+              {inputCollapsed ? '展开' : '折叠'}
+            </button>
+          </div>
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{
+              maxHeight: inputCollapsed ? '0px' : '400px',
+              opacity: inputCollapsed ? 0 : 1,
+            }}
+          >
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+              onStop={handleStop}
+              placeholder="输入你的问题、灵感，或者让它帮你继续完善设定..."
+              helperText="支持连续追问、改写和补充上下文。"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

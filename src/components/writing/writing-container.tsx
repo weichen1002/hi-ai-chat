@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
 import { sendChatMessage } from '@/lib/api';
@@ -22,6 +22,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
   } = useChatStore();
   const { conversations, addMessageToConversation, updateConversation, setSidebarOpen } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [inputCollapsed, setInputCollapsed] = useState(false);
 
   const currentConversation = conversations.find((conversation) => conversation.id === conversationId);
   const panelWidthClass = 'max-w-3xl';
@@ -135,53 +136,62 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {/* 顶部区域 — 折叠时隐藏 */}
       <div
-        className="px-4 py-3 sm:px-6"
+        className="overflow-hidden transition-all duration-300 ease-in-out"
         style={{
-          borderBottom: '1px solid var(--border-default)',
-          background: 'var(--topbar-bg)',
+          maxHeight: inputCollapsed ? '0px' : '200px',
+          opacity: inputCollapsed ? 0 : 1,
         }}
       >
-        <div className={`${panelWidthClass} mx-auto flex flex-col gap-3`}>
-          <div className="mobile-titlebar sm:hidden">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="mobile-titlebar__menu"
-              aria-label="打开菜单"
-            >
-              <svg className="h-[1.05rem] w-[1.05rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M4 7h16M4 12h16M4 17h10" />
-              </svg>
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="text-[0.68rem] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
-                {headlineTitle}
+        <div
+          className="px-4 py-3 sm:px-6"
+          style={{
+            borderBottom: '1px solid var(--border-default)',
+            background: 'var(--topbar-bg)',
+          }}
+        >
+          <div className={`${panelWidthClass} mx-auto flex flex-col gap-3`}>
+            <div className="mobile-titlebar sm:hidden">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="mobile-titlebar__menu"
+                aria-label="打开菜单"
+              >
+                <svg className="h-[1.05rem] w-[1.05rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M4 7h16M4 12h16M4 17h10" />
+                </svg>
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="text-[0.68rem] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+                  {headlineTitle}
+                </div>
+                <div className="truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  写作
+                </div>
               </div>
-              <div className="truncate text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                写作
+              <div className="rounded-full px-2.5 py-1 text-[0.68rem]" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
+                {currentConversation?.model || 'gpt-5.5'}
               </div>
             </div>
-            <div className="rounded-full px-2.5 py-1 text-[0.68rem]" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
-              {currentConversation?.model || 'gpt-5.5'}
-            </div>
-          </div>
 
-          <div className="hidden min-w-0 sm:flex sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0">
-              <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.22em]" style={{ color: 'var(--text-muted)' }}>
-                <span>{headlineIcon}</span>
-                <span>{headlineTitle}</span>
+            <div className="hidden min-w-0 sm:flex sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.22em]" style={{ color: 'var(--text-muted)' }}>
+                  <span>{headlineIcon}</span>
+                  <span>{headlineTitle}</span>
+                </div>
+                <h2 className="text-xl font-semibold sm:text-2xl" style={{ color: 'var(--text-primary)' }}>
+                  更像和编辑搭档的写作工作台
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
+                  {headlineDescription}
+                </p>
               </div>
-              <h2 className="text-xl font-semibold sm:text-2xl" style={{ color: 'var(--text-primary)' }}>
-                更像和编辑搭档的写作工作台
-              </h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
-                {headlineDescription}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-xs" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
-              <span>模型</span>
-              <span style={{ color: 'var(--text-primary)' }}>{currentConversation?.model || 'gpt-5.5'}</span>
+              <div className="flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-xs" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
+                <span>模型</span>
+                <span style={{ color: 'var(--text-primary)' }}>{currentConversation?.model || 'gpt-5.5'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -228,34 +238,59 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         </div>
       )}
 
+      {/* 底部输入区域 — 折叠/展开控制 */}
       <div
-        className="px-3 pt-3 sm:px-6"
+        className="px-3 pt-1.5 sm:px-6 transition-all duration-300 ease-in-out"
         style={{
-          borderTop: '1px solid var(--border-default)',
+          borderTop: inputCollapsed ? 'none' : '1px solid var(--border-default)',
           background: 'var(--topbar-bg)',
-          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))',
+          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
         }}
       >
         <div className={`${panelWidthClass} mx-auto`}>
-          {!showPrompts && (
-            <div className="mb-2 flex gap-2">
-              <button
-                onClick={handleNewWriting}
-                className="rounded-full px-3 py-1.5 text-xs transition-colors"
-                style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+          <div className="flex items-center justify-end mb-1">
+            <button
+              onClick={() => setInputCollapsed(!inputCollapsed)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-all hover:opacity-80"
+              style={{ color: 'var(--text-muted)', opacity: 0.4 }}
+              title={inputCollapsed ? '展开输入区域' : '折叠输入区域'}
+            >
+              <svg
+                className="w-3 h-3 transition-transform duration-300"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                style={{ transform: inputCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}
               >
-                新写作
-              </button>
-            </div>
-          )}
-
-          <MessageInput
-            onSendMessage={handleSendMessage}
-            isLoading={isLoading}
-            onStop={handleStop}
-            placeholder={followupPlaceholder}
-            helperText={showPrompts ? helperText : '按 Enter 发送，Shift+Enter 换行。'}
-          />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+              {inputCollapsed ? '展开' : '折叠'}
+            </button>
+          </div>
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{
+              maxHeight: inputCollapsed ? '0px' : '400px',
+              opacity: inputCollapsed ? 0 : 1,
+            }}
+          >
+            {!showPrompts && (
+              <div className="mb-2 flex gap-2">
+                <button
+                  onClick={handleNewWriting}
+                  className="rounded-full px-3 py-1.5 text-xs transition-colors"
+                  style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                >
+                  新写作
+                </button>
+              </div>
+            )}
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+              onStop={handleStop}
+              placeholder={followupPlaceholder}
+              helperText={showPrompts ? helperText : '按 Enter 发送，Shift+Enter 换行。'}
+            />
+          </div>
         </div>
       </div>
     </div>
