@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
         messages,
         stream: true,
       }),
+      signal: request.signal,
     });
 
     if (!response.ok) {
@@ -52,34 +53,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 直接透传上游 SSE 流，保持原始格式
-    const reader = response.body?.getReader();
-    if (!reader) {
+    if (!response.body) {
       return NextResponse.json(
         { error: '无法读取上游响应流' },
         { status: 500 }
       );
     }
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            controller.enqueue(value);
-          }
-        } catch (error) {
-          console.error('流处理错误:', error);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
+    return new Response(response.body, {
       headers: {
-        'Content-Type': 'text/event-stream',
+        'Content-Type': response.headers.get('content-type') || 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
       },
