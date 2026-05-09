@@ -25,7 +25,7 @@ export function loadConversations(): Conversation[] {
     return parsed.map((conversation) => ({
       ...conversation,
       model: conversation.model || 'gpt-5.5',
-      mode: conversation.mode === 'writing' || conversation.mode === 'novel' ? 'writing' : 'chat',
+      mode: conversation.mode === 'writing' ? 'writing' : 'chat',
     }));
   } catch (error) {
     console.error('加载对话失败:', error);
