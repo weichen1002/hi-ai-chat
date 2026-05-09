@@ -96,6 +96,24 @@ npm run build
 npm start
 ```
 
+### PM2 部署
+
+```bash
+npm install
+npm run build
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+常用命令：
+
+```bash
+pm2 status
+pm2 logs hi-ai-chat
+pm2 restart hi-ai-chat
+pm2 stop hi-ai-chat
+```
+
 ## 技术栈
 
 - Next.js 14 (App Router)
