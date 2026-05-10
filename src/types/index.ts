@@ -9,6 +9,13 @@ export interface Message {
   model?: string;
 }
 
+export interface WritingContext {
+  storyBible: string;
+  characterNotes: string;
+  chapterSummary: string;
+  currentGoal: string;
+}
+
 export interface Conversation {
   id: string;
   title: string;
@@ -20,6 +27,7 @@ export interface Conversation {
   temperature: number | null;
   outputMode: OutputMode;
   timeoutMs: number;
+  writingContext: WritingContext;
 }
 
 export interface Model {

@@ -23,8 +23,27 @@ cp .env.local.example .env.local
 编辑 `.env.local` 文件：
 
 ```env
-NEXT_PUBLIC_API_ENDPOINT=your_sub2api_endpoint
-NEXT_PUBLIC_API_KEY=your_api_key
+API_ENDPOINT=your_sub2api_endpoint
+API_KEY=your_api_key
+```
+
+### 1.1 接入日志平台（可选）
+
+当前项目已经支持服务端日志双写：
+- 本地继续输出到 `console`
+- 如果配置了日志平台地址和 token，会自动投递远程日志
+
+推荐直接接 Better Stack 的 HTTP Source，官方文档：
+- [Better Stack HTTP 日志接入](https://betterstack.com/docs/logs/sources/http-rest-api/)
+- [Better Stack Next.js 日志文档](https://betterstack.com/docs/logs/javascript/nextjs/)
+
+环境变量示例：
+
+```env
+LOG_INGEST_URL=https://in.logs.betterstack.com
+LOG_INGEST_TOKEN=your_source_token
+LOG_SERVICE_NAME=hi-ai-chat
+LOG_ENVIRONMENT=production
 ```
 
 ### 2. 安装依赖

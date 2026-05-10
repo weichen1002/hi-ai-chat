@@ -21,7 +21,7 @@ export function getDefaultOutputMode(): OutputMode {
 }
 
 export function getDefaultTimeoutMs(mode: 'chat' | 'writing'): number {
-  return mode === 'writing' ? 180000 : 120000;
+  return mode === 'writing' ? 300000 : 120000;
 }
 
 export function clampTemperature(value: number): number {
@@ -36,7 +36,7 @@ export function normalizeTemperature(value: number | null | undefined): number |
 export function normalizeTimeoutMs(value: number, mode: AppMode): number {
   const fallback = getDefaultTimeoutMs(mode);
   if (!Number.isFinite(value)) return fallback;
-  return Math.min(300000, Math.max(30000, Math.round(value)));
+  return Math.min(900000, Math.max(30000, Math.round(value)));
 }
 
 export function isOutputMode(value: string): value is OutputMode {

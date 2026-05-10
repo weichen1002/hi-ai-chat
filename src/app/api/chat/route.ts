@@ -7,6 +7,7 @@ import {
   normalizeTemperature,
   normalizeTimeoutMs,
 } from '@/lib/chat-config';
+import { logServerEvent } from '@/lib/server-log';
 import { OutputMode } from '@/types';
 
 const API_ENDPOINT = process.env.API_ENDPOINT || process.env.NEXT_PUBLIC_API_ENDPOINT || '';
@@ -57,11 +58,27 @@ function buildMessages(messages: ChatMessage[], outputMode: OutputMode): ChatMes
   ];
 }
 
+function getChatEventLevel(event: string): 'info' | 'warn' | 'error' {
+  if (event === 'upstream_error' || event === 'request_aborted') {
+    return 'warn';
+  }
+
+  if (event === 'stream_error' || event === 'request_failed') {
+    return 'error';
+  }
+
+  return 'info';
+}
+
 function logChatEvent(requestId: string, event: string, extra: Record<string, unknown>) {
-  console.info('[chat_api]', {
-    requestId,
+  logServerEvent({
+    category: 'chat_api',
     event,
-    ...extra,
+    level: getChatEventLevel(event),
+    data: {
+      requestId,
+      ...extra,
+    },
   });
 }
 
@@ -164,11 +181,15 @@ export async function POST(request: NextRequest) {
       const errorText = await response.text();
       let errorMessage = `API请求失败: ${response.status}`;
 
-      try {
-        const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.error?.message || errorMessage;
-      } catch {
-        errorMessage = `${errorMessage} - ${errorText.substring(0, 200)}`;
+      if (response.status === 413) {
+        errorMessage = '请求体过大。对小说写作，建议把长期设定、人物卡、章节摘要放进“小说记忆”，不要每次都携带整章原文或过长聊天记录。';
+      } else {
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error?.message || errorMessage;
+        } catch {
+          errorMessage = `${errorMessage} - ${errorText.substring(0, 200)}`;
+        }
       }
 
       logChatEvent(requestId, 'upstream_error', {

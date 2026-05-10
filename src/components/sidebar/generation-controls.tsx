@@ -9,6 +9,8 @@ const TIMEOUT_OPTIONS = [
   { value: 120000, label: '120s' },
   { value: 180000, label: '180s' },
   { value: 300000, label: '300s' },
+  { value: 600000, label: '600s' },
+  { value: 900000, label: '900s' },
 ];
 
 export function GenerationControls() {

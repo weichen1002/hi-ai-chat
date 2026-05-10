@@ -8,9 +8,11 @@ import { flushConversationSave } from '@/lib/storage';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageInput } from '@/components/chat/message-input';
 import { WritingPrompts } from './writing-prompts';
+import { WritingContextPanel } from './writing-context-panel';
 import { generateConversationTitle } from '@/lib/utils';
 import { OutputMode } from '@/types';
 import { useSmartScroll } from '@/hooks/use-smart-scroll';
+import { buildWritingSystemMessages } from '@/lib/writing-context';
 
 interface WritingContainerProps {
   conversationId: string | null;
@@ -61,7 +63,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
     outputMode: OutputMode,
     timeoutMs: number,
   ) => {
-    if (!conversationId) return;
+    if (!conversationId || !currentConversation) return;
 
     addMessageToConversation(conversationId, { role: 'assistant' as const, content: '', model });
     setLoading(true);
@@ -69,9 +71,18 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
 
     const controller = new AbortController();
     setAbortController(controller);
+    const requestMessages = [
+      ...buildWritingSystemMessages(currentConversation.writingContext),
+      ...allMessages.map((message) => ({
+        id: '',
+        role: message.role as 'user' | 'assistant' | 'system',
+        content: message.content,
+        timestamp: Date.now(),
+      })),
+    ].map(({ role, content }) => ({ role, content }));
 
     await sendChatMessage(
-      allMessages,
+      requestMessages,
       model,
       { temperature, outputMode, timeoutMs },
       (chunk) => updateLastMessageInConversation(conversationId, chunk),
@@ -108,7 +119,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
       },
       controller.signal,
     );
-  }, [conversationId, addMessageToConversation, updateLastMessageInConversation, removeLastMessageFromConversation, setLoading, setError, setAbortController, updateConversation]);
+  }, [conversationId, currentConversation, addMessageToConversation, updateLastMessageInConversation, removeLastMessageFromConversation, setLoading, setError, setAbortController, updateConversation]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!conversationId || !currentConversation) return;
@@ -230,6 +241,15 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-7"
       >
         <div className={`${panelWidthClass} mx-auto`}>
+          {currentConversation && (
+            <div className="mb-5">
+              <WritingContextPanel
+                conversationId={currentConversation.id}
+                writingContext={currentConversation.writingContext}
+              />
+            </div>
+          )}
+
           {showPrompts ? (
             <div className="space-y-6 animate-fade-in">
               <div className="rounded-[28px] border px-5 py-6 sm:px-7" style={{ background: 'var(--panel-surface)', borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-md)' }}>

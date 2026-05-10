@@ -1,4 +1,4 @@
-import { AppMode, Conversation } from '@/types';
+import { AppMode, Conversation, WritingContext } from '@/types';
 import {
   getDefaultOutputMode,
   getDefaultTemperature,
@@ -45,7 +45,6 @@ if (isBrowser()) {
       saveTimer = null;
     }
 
-    const conversationsToSave = pendingConversations;
     pendingConversations = null;
 
     // 尝试用 sendBeacon 发到一个保存接口（但没做服务端，暂时注释）
@@ -62,7 +61,17 @@ function normalizeConversations(conversations: Conversation[]): Conversation[] {
     temperature: normalizeConversationTemperature(conversation),
     outputMode: normalizeConversationOutputMode(conversation),
     timeoutMs: normalizeConversationTimeout(conversation),
+    writingContext: normalizeWritingContext(conversation.writingContext),
   }));
+}
+
+function normalizeWritingContext(writingContext: WritingContext | undefined): WritingContext {
+  return {
+    storyBible: writingContext?.storyBible || '',
+    characterNotes: writingContext?.characterNotes || '',
+    chapterSummary: writingContext?.chapterSummary || '',
+    currentGoal: writingContext?.currentGoal || '',
+  };
 }
 
 function getConversationMode(conversation: Conversation): AppMode {

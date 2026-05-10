@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AppMode, Conversation, AppState, Message } from '@/types';
+import { AppMode, Conversation, AppState, Message, WritingContext } from '@/types';
 import { generateId } from '@/lib/utils';
 import { saveConversations, loadConversations, saveCurrentConversationId, loadCurrentConversationId } from '@/lib/storage';
 import { getDefaultOutputMode, getDefaultTemperature, getDefaultTimeoutMs } from '@/lib/chat-config';
@@ -22,6 +22,15 @@ interface AppStore extends AppState {
   toggleTheme: () => void;
 }
 
+function createEmptyWritingContext(): WritingContext {
+  return {
+    storyBible: '',
+    characterNotes: '',
+    chapterSummary: '',
+    currentGoal: '',
+  };
+}
+
 function createDraftConversation(mode: AppMode): Conversation {
   return {
     id: generateId(),
@@ -34,6 +43,7 @@ function createDraftConversation(mode: AppMode): Conversation {
     temperature: getDefaultTemperature(),
     outputMode: getDefaultOutputMode(),
     timeoutMs: getDefaultTimeoutMs(mode),
+    writingContext: createEmptyWritingContext(),
   };
 }
 
