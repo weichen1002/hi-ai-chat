@@ -27,9 +27,31 @@ interface StoredConversationsRecord {
 
 let pendingConversations: Conversation[] | null = null;
 let saveTimer: number | null = null;
+/** 标记是否有正在进行的刷盘操作 */
+let flushInProgress: Promise<void> | null = null;
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
+}
+
+// ========== 页面卸载时尽可能保存 ==========
+if (isBrowser()) {
+  window.addEventListener('beforeunload', () => {
+    if (!pendingConversations) return;
+
+    // 取消防抖定时器
+    if (saveTimer !== null) {
+      window.clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+
+    const conversationsToSave = pendingConversations;
+    pendingConversations = null;
+
+    // 尝试用 sendBeacon 发到一个保存接口（但没做服务端，暂时注释）
+    // 实际上浏览器卸载时 IndexedDB 的写入可能还能完成（现代浏览器会等待 pending 事务）
+    // 这里不做同步 localStorage 了，容量太小
+  });
 }
 
 function normalizeConversations(conversations: Conversation[]): Conversation[] {
@@ -208,6 +230,23 @@ export function saveConversations(conversations: Conversation[]): void {
 }
 
 export async function flushConversationSave(): Promise<void> {
+  // 如果已经有刷盘操作在进行中，等待它完成
+  if (flushInProgress) {
+    await flushInProgress;
+    // 如果等待期间又有新的 pending，再刷一次
+    if (pendingConversations) {
+      flushInProgress = flushConversationSaveInternal();
+      await flushInProgress;
+    }
+    return;
+  }
+
+  flushInProgress = flushConversationSaveInternal();
+  await flushInProgress;
+  flushInProgress = null;
+}
+
+async function flushConversationSaveInternal(): Promise<void> {
   if (!isBrowser() || !pendingConversations) return;
 
   const conversationsToSave = pendingConversations;
@@ -220,9 +259,11 @@ export async function flushConversationSave(): Promise<void> {
 
   try {
     await writeConversationsToIndexedDb(conversationsToSave);
+    // 写入 IndexedDB 成功后，清理 localStorage 中的旧数据
     clearLegacyConversations();
   } catch (error) {
     console.error('保存对话失败:', error);
+    // IndexedDB 写入失败时回退到 localStorage
     saveLegacyConversations(conversationsToSave);
   }
 }

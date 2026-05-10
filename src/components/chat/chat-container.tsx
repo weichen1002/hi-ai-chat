@@ -6,6 +6,7 @@ import { useAppStore } from '@/stores/app-store';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
 import { sendChatMessage } from '@/lib/api';
+import { flushConversationSave } from '@/lib/storage';
 import { OutputMode } from '@/types';
 import { useSmartScroll } from '@/hooks/use-smart-scroll';
 
@@ -65,7 +66,7 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
       model,
       { temperature, outputMode, timeoutMs },
       (chunk) => updateLastMessageInConversation(conversationId, chunk),
-      () => {
+      async () => {
         setLoading(false);
         setAbortController(null);
         const conv = useAppStore.getState().conversations.find(c => c.id === conversationId);
@@ -77,8 +78,11 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
             ? firstUserMessage.content.substring(0, 20) + (firstUserMessage.content.length > 20 ? '...' : '')
             : conv?.title,
         });
+
+        // 强制刷盘，确保数据立即保存到 IndexedDB
+        await flushConversationSave();
       },
-      (errorMessage) => {
+      async (errorMessage) => {
         const conv = useAppStore.getState().conversations.find(c => c.id === conversationId);
         const conversationMessages = conv?.messages || [];
         const lastMessage = conversationMessages[conversationMessages.length - 1];
@@ -90,6 +94,9 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
         setError(errorMessage);
         setLoading(false);
         setAbortController(null);
+
+        // 出错时也强制刷盘，尽可能保留已有内容
+        await flushConversationSave();
       },
       controller.signal,
     );
@@ -212,18 +219,20 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
       </div>
 
       {showJumpToLatest && messages.length > 0 && (
-        <div className="pointer-events-none absolute bottom-28 right-5 z-20 sm:bottom-32 sm:right-8">
+        <div className="pointer-events-none absolute bottom-3 right-5 z-20 sm:right-8">
           <button
             type="button"
             onClick={() => scrollToBottom()}
-            className="pointer-events-auto rounded-full px-3 py-2 text-xs shadow-lg transition-all hover:opacity-90"
+            className="pointer-events-auto flex items-center justify-center w-9 h-9 rounded-full shadow-lg transition-all hover:opacity-90 hover:scale-105 active:scale-95"
             style={{
               background: 'var(--panel-surface)',
               border: '1px solid var(--border-default)',
-              color: 'var(--text-primary)',
+              color: 'var(--text-secondary)',
             }}
           >
-            回到最新
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0l-6-6m6 6l6-6" />
+            </svg>
           </button>
         </div>
       )}
