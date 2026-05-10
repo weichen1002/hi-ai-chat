@@ -1,7 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/stores/app-store';
-import { OUTPUT_MODE_OPTIONS } from '@/lib/chat-config';
+import { getDefaultOutputMode, getDefaultTimeoutMs, OUTPUT_MODE_OPTIONS } from '@/lib/chat-config';
 import { OutputMode } from '@/types';
 
 const TIMEOUT_OPTIONS = [
@@ -19,12 +19,17 @@ export function GenerationControls() {
   const temperature = currentConversation?.temperature;
   const timeoutMs = currentConversation?.timeoutMs ?? 120000;
   const isDefaultTemperature = temperature == null;
+  const defaultOutputMode = getDefaultOutputMode();
 
   const currentModeMeta = OUTPUT_MODE_OPTIONS.find((option) => option.id === selectedOutputMode);
 
   if (!currentConversationId || !currentConversation) {
     return null;
   }
+
+  const defaultTimeoutMs = getDefaultTimeoutMs(currentConversation.mode);
+  const isDefaultOutputMode = selectedOutputMode === defaultOutputMode;
+  const isDefaultTimeout = timeoutMs === defaultTimeoutMs;
 
   const patchConversation = (updates: {
     temperature?: number | null;
@@ -83,7 +88,21 @@ export function GenerationControls() {
         </label>
 
         <label className="block">
-          <div className="mb-1.5 text-[11px]" style={{ color: 'var(--text-secondary)' }}>输出模式</div>
+          <div className="mb-1.5 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+            <span>输出模式</span>
+            <button
+              type="button"
+              onClick={() => patchConversation({ outputMode: defaultOutputMode })}
+              className="rounded-full px-2 py-0.5"
+              style={{
+                background: isDefaultOutputMode ? 'var(--panel-muted)' : 'transparent',
+                border: '1px solid var(--border-default)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              恢复默认
+            </button>
+          </div>
           <select
             value={selectedOutputMode}
             onChange={(event) => patchConversation({ outputMode: event.target.value as OutputMode })}
@@ -106,7 +125,21 @@ export function GenerationControls() {
         </label>
 
         <label className="block">
-          <div className="mb-1.5 text-[11px]" style={{ color: 'var(--text-secondary)' }}>超时控制</div>
+          <div className="mb-1.5 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+            <span>超时控制</span>
+            <button
+              type="button"
+              onClick={() => patchConversation({ timeoutMs: defaultTimeoutMs })}
+              className="rounded-full px-2 py-0.5"
+              style={{
+                background: isDefaultTimeout ? 'var(--panel-muted)' : 'transparent',
+                border: '1px solid var(--border-default)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              恢复默认
+            </button>
+          </div>
           <select
             value={timeoutMs}
             onChange={(event) => patchConversation({ timeoutMs: Number(event.target.value) })}

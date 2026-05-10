@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
 import { sendChatMessage } from '@/lib/api';
@@ -9,6 +9,7 @@ import { MessageInput } from '@/components/chat/message-input';
 import { WritingPrompts } from './writing-prompts';
 import { generateConversationTitle } from '@/lib/utils';
 import { OutputMode } from '@/types';
+import { useSmartScroll } from '@/hooks/use-smart-scroll';
 
 interface WritingContainerProps {
   conversationId: string | null;
@@ -28,7 +29,6 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
     updateConversation,
     setSidebarOpen,
   } = useAppStore();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputCollapsed, setInputCollapsed] = useState(false);
 
   const currentConversation = conversations.find((conversation) => conversation.id === conversationId);
@@ -38,15 +38,20 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
   );
   const panelWidthClass = 'max-w-3xl';
   const showPrompts = messages.length === 0;
+  const scrollSignal = `${showPrompts ? 'prompts' : 'thread'}:${messages.length}:${messages[messages.length - 1]?.content.length || 0}`;
   const headlineIcon = '✍️';
   const headlineTitle = '写作模式';
   const headlineDescription = '像和编辑搭档一样，一边问、一边试、一边改，不用先想清楚全部方向。';
   const followupPlaceholder = '把你现在在想什么、卡在哪，或一小段草稿直接发给我...';
   const helperText = '可以很模糊地开口，比如“我想写点东西，但还没想好方向”。';
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const {
+    scrollContainerRef,
+    messagesEndRef,
+    showJumpToLatest,
+    handleScroll,
+    scrollToBottom,
+  } = useSmartScroll(scrollSignal, conversationId);
 
   const doSendMessage = useCallback(async (
     allMessages: { role: string; content: string }[],
@@ -150,7 +155,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
   }, [conversationId, setError, updateConversation]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       {/* 顶部区域 — 折叠时隐藏 */}
       <div
         className="overflow-hidden transition-all duration-300 ease-in-out"
@@ -212,7 +217,11 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-7">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-7"
+      >
         <div className={`${panelWidthClass} mx-auto`}>
           {showPrompts ? (
             <div className="space-y-6 animate-fade-in">
@@ -241,6 +250,23 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
           )}
         </div>
       </div>
+
+      {showJumpToLatest && messages.length > 0 && (
+        <div className="pointer-events-none absolute bottom-28 right-5 z-20 sm:bottom-32 sm:right-8">
+          <button
+            type="button"
+            onClick={() => scrollToBottom()}
+            className="pointer-events-auto rounded-full px-3 py-2 text-xs shadow-lg transition-all hover:opacity-90"
+            style={{
+              background: 'var(--panel-surface)',
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            回到最新
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="px-4 py-2 text-sm animate-slide-up" style={{ background: 'rgba(185, 28, 28, 0.08)', color: '#b91c1c' }}>

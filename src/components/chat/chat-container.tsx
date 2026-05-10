@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useChatStore } from '@/stores/chat-store';
 import { useAppStore } from '@/stores/app-store';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
 import { sendChatMessage } from '@/lib/api';
 import { OutputMode } from '@/types';
+import { useSmartScroll } from '@/hooks/use-smart-scroll';
 
 interface ChatContainerProps {
   conversationId: string | null;
@@ -26,7 +27,6 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
     updateConversation,
     setSidebarOpen,
   } = useAppStore();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputCollapsed, setInputCollapsed] = useState(false);
 
   const currentConversation = conversations.find(c => c.id === conversationId);
@@ -34,10 +34,15 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
     () => currentConversation?.messages.filter((message) => message.role !== 'system') || [],
     [currentConversation?.messages],
   );
+  const scrollSignal = `${messages.length}:${messages[messages.length - 1]?.content.length || 0}`;
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const {
+    scrollContainerRef,
+    messagesEndRef,
+    showJumpToLatest,
+    handleScroll,
+    scrollToBottom,
+  } = useSmartScroll(scrollSignal, conversationId);
 
   const doSendMessage = useCallback(async (
     allMessages: { role: string; content: string }[],
@@ -132,7 +137,7 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
   }, [stopGeneration]);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="relative flex h-full min-h-0 flex-col">
       {/* 顶部区域 — 折叠时隐藏 */}
       <div
         className="overflow-hidden transition-all duration-300 ease-in-out"
@@ -190,7 +195,11 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-7">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-7"
+      >
         <div className="max-w-4xl mx-auto">
           <MessageList
             messages={messages}
@@ -201,6 +210,23 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {showJumpToLatest && messages.length > 0 && (
+        <div className="pointer-events-none absolute bottom-28 right-5 z-20 sm:bottom-32 sm:right-8">
+          <button
+            type="button"
+            onClick={() => scrollToBottom()}
+            className="pointer-events-auto rounded-full px-3 py-2 text-xs shadow-lg transition-all hover:opacity-90"
+            style={{
+              background: 'var(--panel-surface)',
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            回到最新
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="px-4 py-2 text-sm animate-slide-up" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
