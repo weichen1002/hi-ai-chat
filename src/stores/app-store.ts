@@ -1,15 +1,18 @@
 import { create } from 'zustand';
-import { AppMode, Conversation, AppState } from '@/types';
+import { AppMode, Conversation, AppState, Message } from '@/types';
 import { generateId } from '@/lib/utils';
 import { saveConversations, loadConversations, saveCurrentConversationId, loadCurrentConversationId } from '@/lib/storage';
+import { getDefaultOutputMode, getDefaultTemperature, getDefaultTimeoutMs } from '@/lib/chat-config';
 
 interface AppStore extends AppState {
   createConversation: (mode?: AppMode) => string;
   setCurrentConversation: (id: string | null) => void;
   updateConversation: (id: string, updates: Partial<Conversation>) => void;
   deleteConversation: (id: string) => void;
-  addMessageToConversation: (conversationId: string, message: { id?: string; timestamp?: number; role: 'user' | 'assistant' | 'system'; content: string; model?: string }) => void;
-  loadConversations: () => Conversation[];
+  addMessageToConversation: (conversationId: string, message: { id?: string; timestamp?: number; role: 'user' | 'assistant' | 'system'; content: string; model?: string }) => Message;
+  updateLastMessageInConversation: (conversationId: string, content: string) => void;
+  removeLastMessageFromConversation: (conversationId: string) => void;
+  loadConversations: () => Promise<Conversation[]>;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
@@ -28,6 +31,9 @@ function createDraftConversation(mode: AppMode): Conversation {
     updatedAt: Date.now(),
     model: 'gpt-5.5',
     mode,
+    temperature: getDefaultTemperature(),
+    outputMode: getDefaultOutputMode(),
+    timeoutMs: getDefaultTimeoutMs(mode),
   };
 }
 
@@ -91,25 +97,72 @@ export const useAppStore = create<AppStore>((set) => ({
     };
   }),
 
-  addMessageToConversation: (conversationId, message) => set((state) => {
-    const conversations = state.conversations.map(conv => {
-      if (conv.id !== conversationId) return conv;
+  addMessageToConversation: (conversationId, message) => {
+    const nextMessage: Message = {
+      ...message,
+      id: message.id || generateId(),
+      timestamp: message.timestamp || Date.now(),
+    };
+
+    set((state) => {
+      const conversations = state.conversations.map((conversation) => {
+        if (conversation.id !== conversationId) return conversation;
+        return {
+          ...conversation,
+          messages: [...conversation.messages, nextMessage],
+          updatedAt: Date.now(),
+        };
+      });
+      saveConversations(conversations);
+      return { conversations };
+    });
+
+    return nextMessage;
+  },
+
+  updateLastMessageInConversation: (conversationId, content) => set((state) => {
+    const conversations = state.conversations.map((conversation) => {
+      if (conversation.id !== conversationId || conversation.messages.length === 0) {
+        return conversation;
+      }
+
+      const messages = [...conversation.messages];
+      const lastMessage = messages[messages.length - 1];
+      messages[messages.length - 1] = {
+        ...lastMessage,
+        content: lastMessage.content + content,
+      };
+
       return {
-        ...conv,
-        messages: [...conv.messages, {
-          ...message,
-          id: message.id || generateId(),
-          timestamp: message.timestamp || Date.now(),
-        }],
+        ...conversation,
+        messages,
         updatedAt: Date.now(),
       };
     });
+
     saveConversations(conversations);
     return { conversations };
   }),
 
-  loadConversations: () => {
-    const conversations = loadConversations();
+  removeLastMessageFromConversation: (conversationId) => set((state) => {
+    const conversations = state.conversations.map((conversation) => {
+      if (conversation.id !== conversationId || conversation.messages.length === 0) {
+        return conversation;
+      }
+
+      return {
+        ...conversation,
+        messages: conversation.messages.slice(0, -1),
+        updatedAt: Date.now(),
+      };
+    });
+
+    saveConversations(conversations);
+    return { conversations };
+  }),
+
+  loadConversations: async () => {
+    const conversations = await loadConversations();
     const savedCurrentConversationId = loadCurrentConversationId();
     const currentConversationId = savedCurrentConversationId && conversations.some((conversation) => conversation.id === savedCurrentConversationId)
       ? savedCurrentConversationId

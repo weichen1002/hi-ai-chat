@@ -1,4 +1,4 @@
-import { Model } from '@/types';
+import { Model, OutputMode } from '@/types';
 
 export const AVAILABLE_MODELS: Model[] = [
   {
@@ -31,9 +31,16 @@ export const AVAILABLE_MODELS: Model[] = [
   },
 ];
 
+interface ChatRequestOptions {
+  temperature: number | null;
+  outputMode: OutputMode;
+  timeoutMs: number;
+}
+
 export async function sendChatMessage(
   messages: { role: string; content: string }[],
   model: string,
+  options: ChatRequestOptions,
   onChunk: (chunk: string) => void,
   onComplete: () => void,
   onError: (error: string) => void,
@@ -48,6 +55,9 @@ export async function sendChatMessage(
       },
       body: JSON.stringify({
         model,
+        ...(options.temperature === null ? {} : { temperature: options.temperature }),
+        outputMode: options.outputMode,
+        timeoutMs: options.timeoutMs,
         messages: messages.map(msg => ({
           role: msg.role,
           content: msg.content,
@@ -58,7 +68,11 @@ export async function sendChatMessage(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.error || `API请求失败: ${response.status}`);
+      throw new Error(
+        errorData?.error?.message ||
+        errorData?.error ||
+        `API请求失败: ${response.status}`,
+      );
     }
 
     const reader = response.body?.getReader();
@@ -77,23 +91,26 @@ export async function sendChatMessage(
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') {
-            onComplete();
-            return;
-          }
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith(':') || !line.startsWith('data:')) {
+          continue;
+        }
 
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.content || parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              onChunk(content);
-            }
-          } catch {
-            // 忽略解析错误
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') {
+          onComplete();
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.content || parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            onChunk(content);
           }
+        } catch {
+          // 忽略解析错误
         }
       }
     }

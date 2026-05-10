@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { useChatStore } from '@/stores/chat-store';
 import { sendChatMessage } from '@/lib/api';
@@ -8,6 +8,7 @@ import { MessageList } from '@/components/chat/message-list';
 import { MessageInput } from '@/components/chat/message-input';
 import { WritingPrompts } from './writing-prompts';
 import { generateConversationTitle } from '@/lib/utils';
+import { OutputMode } from '@/types';
 
 interface WritingContainerProps {
   conversationId: string | null;
@@ -15,16 +16,26 @@ interface WritingContainerProps {
 
 export function WritingContainer({ conversationId }: WritingContainerProps) {
   const {
-    messages, isLoading, error,
-    addMessage, updateLastMessage, removeLastMessage,
-    setLoading, setError, setMessages,
+    isLoading, error,
+    setLoading, setError,
     setAbortController, stopGeneration,
   } = useChatStore();
-  const { conversations, addMessageToConversation, updateConversation, setSidebarOpen } = useAppStore();
+  const {
+    conversations,
+    addMessageToConversation,
+    updateLastMessageInConversation,
+    removeLastMessageFromConversation,
+    updateConversation,
+    setSidebarOpen,
+  } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputCollapsed, setInputCollapsed] = useState(false);
 
   const currentConversation = conversations.find((conversation) => conversation.id === conversationId);
+  const messages = useMemo(
+    () => currentConversation?.messages.filter((message) => message.role !== 'system') || [],
+    [currentConversation?.messages],
+  );
   const panelWidthClass = 'max-w-3xl';
   const showPrompts = messages.length === 0;
   const headlineIcon = '✍️';
@@ -34,25 +45,19 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
   const helperText = '可以很模糊地开口，比如“我想写点东西，但还没想好方向”。';
 
   useEffect(() => {
-    if (isLoading) return;
-
-    if (currentConversation) {
-      const filteredMessages = currentConversation.messages.filter((message) => message.role !== 'system');
-      setMessages(filteredMessages);
-    } else {
-      setMessages([]);
-    }
-  }, [currentConversation, isLoading, setMessages]);
-
-  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const doSendMessage = useCallback(async (allMessages: { role: string; content: string }[], model: string) => {
+  const doSendMessage = useCallback(async (
+    allMessages: { role: string; content: string }[],
+    model: string,
+    temperature: number | null,
+    outputMode: OutputMode,
+    timeoutMs: number,
+  ) => {
     if (!conversationId) return;
 
-    const assistantMessage = addMessage({ role: 'assistant' as const, content: '', model });
-    addMessageToConversation(conversationId, assistantMessage);
+    addMessageToConversation(conversationId, { role: 'assistant' as const, content: '', model });
     setLoading(true);
     setError(null);
 
@@ -62,36 +67,45 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
     await sendChatMessage(
       allMessages,
       model,
-      (chunk) => updateLastMessage(chunk),
+      { temperature, outputMode, timeoutMs },
+      (chunk) => updateLastMessageInConversation(conversationId, chunk),
       () => {
         setLoading(false);
         setAbortController(null);
-        const updatedMessages = useChatStore.getState().messages;
         const latestConversation = useAppStore.getState().conversations.find((conversation) => conversation.id === conversationId);
+        const updatedMessages = latestConversation?.messages || [];
 
         updateConversation(conversationId, {
-          messages: updatedMessages,
           title: latestConversation?.title === '新对话'
             ? `写作: ${generateConversationTitle(updatedMessages)}`
             : latestConversation?.title,
         });
       },
       (errorMessage) => {
-        const updatedMessages = useChatStore.getState().messages;
+        const latestConversation = useAppStore.getState().conversations.find((conversation) => conversation.id === conversationId);
+        const conversationMessages = latestConversation?.messages || [];
+        const lastMessage = conversationMessages[conversationMessages.length - 1];
+
+        if (lastMessage?.role === 'assistant' && lastMessage.content === '') {
+          removeLastMessageFromConversation(conversationId);
+        }
+
         setError(errorMessage);
         setLoading(false);
         setAbortController(null);
-        updateConversation(conversationId, { messages: updatedMessages });
       },
       controller.signal,
     );
-  }, [conversationId, addMessage, addMessageToConversation, updateLastMessage, setLoading, setError, setAbortController, updateConversation]);
+  }, [conversationId, addMessageToConversation, updateLastMessageInConversation, removeLastMessageFromConversation, setLoading, setError, setAbortController, updateConversation]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!conversationId || !currentConversation) return;
 
-    const userMessage = addMessage({ role: 'user' as const, content, model: currentConversation.model });
-    addMessageToConversation(conversationId, userMessage);
+    const userMessage = addMessageToConversation(conversationId, {
+      role: 'user' as const,
+      content,
+      model: currentConversation.model,
+    });
 
     await doSendMessage(
       [...messages, userMessage].map((message) => ({
@@ -99,32 +113,33 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         content: message.content,
       })),
       currentConversation.model,
+      currentConversation.temperature,
+      currentConversation.outputMode,
+      currentConversation.timeoutMs,
     );
-  }, [conversationId, currentConversation, messages, addMessage, addMessageToConversation, doSendMessage]);
+  }, [conversationId, currentConversation, messages, addMessageToConversation, doSendMessage]);
 
   const handleRegenerate = useCallback(async () => {
     if (!conversationId || !currentConversation || messages.length < 2) return;
 
-    removeLastMessage();
-    const messagesWithoutLast = useChatStore.getState().messages;
-    updateConversation(conversationId, { messages: messagesWithoutLast });
+    removeLastMessageFromConversation(conversationId);
+    const messagesWithoutLast = (useAppStore.getState().conversations.find((conversation) => conversation.id === conversationId)?.messages || [])
+      .filter((message) => message.role !== 'system');
 
     await doSendMessage(
       messagesWithoutLast.map((message) => ({ role: message.role, content: message.content })),
       currentConversation.model,
+      currentConversation.temperature,
+      currentConversation.outputMode,
+      currentConversation.timeoutMs,
     );
-  }, [conversationId, currentConversation, messages.length, removeLastMessage, doSendMessage, updateConversation]);
+  }, [conversationId, currentConversation, messages.length, removeLastMessageFromConversation, doSendMessage]);
 
   const handleStop = useCallback(() => {
     stopGeneration();
-    if (conversationId) {
-      const updatedMessages = useChatStore.getState().messages;
-      updateConversation(conversationId, { messages: updatedMessages });
-    }
-  }, [stopGeneration, conversationId, updateConversation]);
+  }, [stopGeneration]);
 
   const handleNewWriting = useCallback(() => {
-    setMessages([]);
     setError(null);
     if (conversationId) {
       updateConversation(conversationId, {
@@ -132,7 +147,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         title: '新对话',
       });
     }
-  }, [conversationId, setMessages, setError, updateConversation]);
+  }, [conversationId, setError, updateConversation]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">

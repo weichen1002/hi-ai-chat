@@ -1,4 +1,5 @@
 export type AppMode = 'chat' | 'writing';
+export type OutputMode = 'default' | 'balanced' | 'concise' | 'structured' | 'creative';
 
 export interface Message {
   id: string;
@@ -16,6 +17,9 @@ export interface Conversation {
   updatedAt: number;
   model: string;
   mode: AppMode;
+  temperature: number | null;
+  outputMode: OutputMode;
+  timeoutMs: number;
 }
 
 export interface Model {

@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/app-store';
 import { ConversationList } from './conversation-list';
 import { ModelSelector } from './model-selector';
 import { ThemeToggle } from './theme-toggle';
+import { GenerationControls } from './generation-controls';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -127,6 +128,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Model Selector */}
       <div className="px-4 pb-3">
         <ModelSelector />
+      </div>
+
+      <div className="px-4 pb-3">
+        <GenerationControls />
       </div>
 
       {/* Conversation List */}

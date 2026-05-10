@@ -15,10 +15,12 @@ export default function MainLayout({
   useEffect(() => {
     if (!hasLoadedRef.current) {
       hasLoadedRef.current = true;
-      const conversations = loadConversations();
-      if (conversations.length === 0) {
-        createConversation('chat');
-      }
+      void (async () => {
+        const conversations = await loadConversations();
+        if (conversations.length === 0) {
+          createConversation('chat');
+        }
+      })();
     }
   }, [loadConversations, createConversation]);
 

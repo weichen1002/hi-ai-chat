@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useChatStore } from '@/stores/chat-store';
 import { useAppStore } from '@/stores/app-store';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
 import { sendChatMessage } from '@/lib/api';
+import { OutputMode } from '@/types';
 
 interface ChatContainerProps {
   conversationId: string | null;
@@ -13,36 +14,41 @@ interface ChatContainerProps {
 
 export function ChatContainer({ conversationId }: ChatContainerProps) {
   const {
-    messages, isLoading, error,
-    addMessage, updateLastMessage, removeLastMessage,
-    setLoading, setError, setMessages,
+    isLoading, error,
+    setLoading, setError,
     setAbortController, stopGeneration,
   } = useChatStore();
-  const { conversations, addMessageToConversation, updateConversation, setSidebarOpen } = useAppStore();
+  const {
+    conversations,
+    addMessageToConversation,
+    updateLastMessageInConversation,
+    removeLastMessageFromConversation,
+    updateConversation,
+    setSidebarOpen,
+  } = useAppStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputCollapsed, setInputCollapsed] = useState(false);
 
   const currentConversation = conversations.find(c => c.id === conversationId);
-
-  useEffect(() => {
-    if (isLoading) return;
-
-    if (currentConversation) {
-      setMessages(currentConversation.messages);
-    } else {
-      setMessages([]);
-    }
-  }, [conversationId, currentConversation, isLoading, setMessages]);
+  const messages = useMemo(
+    () => currentConversation?.messages.filter((message) => message.role !== 'system') || [],
+    [currentConversation?.messages],
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const doSendMessage = useCallback(async (allMessages: { role: string; content: string }[], model: string) => {
+  const doSendMessage = useCallback(async (
+    allMessages: { role: string; content: string }[],
+    model: string,
+    temperature: number | null,
+    outputMode: OutputMode,
+    timeoutMs: number,
+  ) => {
     if (!conversationId) return;
 
-    const assistantMessage = addMessage({ role: 'assistant' as const, content: '', model });
-    addMessageToConversation(conversationId, assistantMessage);
+    addMessageToConversation(conversationId, { role: 'assistant' as const, content: '', model });
     setLoading(true);
     setError(null);
 
@@ -52,35 +58,46 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
     await sendChatMessage(
       allMessages,
       model,
-      (chunk) => updateLastMessage(chunk),
+      { temperature, outputMode, timeoutMs },
+      (chunk) => updateLastMessageInConversation(conversationId, chunk),
       () => {
         setLoading(false);
         setAbortController(null);
-        const updatedMessages = useChatStore.getState().messages;
         const conv = useAppStore.getState().conversations.find(c => c.id === conversationId);
+        const updatedMessages = conv?.messages || [];
+        const firstUserMessage = updatedMessages.find((message) => message.role === 'user');
+
         updateConversation(conversationId, {
-          messages: updatedMessages,
-          title: conv?.title === '新对话' && updatedMessages.find(m => m.role === 'user')
-            ? updatedMessages.find(m => m.role === 'user')!.content.substring(0, 20) + (updatedMessages.find(m => m.role === 'user')!.content.length > 20 ? '...' : '')
+          title: conv?.title === '新对话' && firstUserMessage
+            ? firstUserMessage.content.substring(0, 20) + (firstUserMessage.content.length > 20 ? '...' : '')
             : conv?.title,
         });
       },
       (errorMessage) => {
-        const updatedMessages = useChatStore.getState().messages;
+        const conv = useAppStore.getState().conversations.find(c => c.id === conversationId);
+        const conversationMessages = conv?.messages || [];
+        const lastMessage = conversationMessages[conversationMessages.length - 1];
+
+        if (lastMessage?.role === 'assistant' && lastMessage.content === '') {
+          removeLastMessageFromConversation(conversationId);
+        }
+
         setError(errorMessage);
         setLoading(false);
         setAbortController(null);
-        updateConversation(conversationId, { messages: updatedMessages });
       },
       controller.signal,
     );
-  }, [conversationId, addMessage, addMessageToConversation, updateLastMessage, setLoading, setError, setAbortController, updateConversation]);
+  }, [conversationId, addMessageToConversation, updateLastMessageInConversation, removeLastMessageFromConversation, setLoading, setError, setAbortController, updateConversation]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!conversationId || !currentConversation) return;
 
-    const userMessage = addMessage({ role: 'user' as const, content, model: currentConversation.model });
-    addMessageToConversation(conversationId, userMessage);
+    const userMessage = addMessageToConversation(conversationId, {
+      role: 'user' as const,
+      content,
+      model: currentConversation.model,
+    });
 
     await doSendMessage(
       [...messages, userMessage].map(message => ({
@@ -88,31 +105,31 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
         content: message.content,
       })),
       currentConversation.model,
+      currentConversation.temperature,
+      currentConversation.outputMode,
+      currentConversation.timeoutMs,
     );
-  }, [conversationId, currentConversation, messages, addMessage, addMessageToConversation, doSendMessage]);
+  }, [conversationId, currentConversation, messages, addMessageToConversation, doSendMessage]);
 
   const handleRegenerate = useCallback(async () => {
     if (!conversationId || !currentConversation || messages.length < 2) return;
 
-    // Remove the last assistant message
-    removeLastMessage();
-    const msgsWithoutLast = useChatStore.getState().messages;
-    updateConversation(conversationId, { messages: msgsWithoutLast });
+    removeLastMessageFromConversation(conversationId);
+    const msgsWithoutLast = (useAppStore.getState().conversations.find(c => c.id === conversationId)?.messages || [])
+      .filter((message) => message.role !== 'system');
 
     await doSendMessage(
       msgsWithoutLast.map(m => ({ role: m.role, content: m.content })),
       currentConversation.model,
+      currentConversation.temperature,
+      currentConversation.outputMode,
+      currentConversation.timeoutMs,
     );
-  }, [conversationId, currentConversation, messages, removeLastMessage, doSendMessage, updateConversation]);
+  }, [conversationId, currentConversation, messages, removeLastMessageFromConversation, doSendMessage]);
 
   const handleStop = useCallback(() => {
     stopGeneration();
-    // Save current state
-    if (conversationId) {
-      const updatedMessages = useChatStore.getState().messages;
-      updateConversation(conversationId, { messages: updatedMessages });
-    }
-  }, [stopGeneration, conversationId, updateConversation]);
+  }, [stopGeneration]);
 
   return (
     <div className="flex flex-col h-full min-h-0">

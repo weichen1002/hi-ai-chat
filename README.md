@@ -99,10 +99,7 @@ npm start
 ### PM2 部署
 
 ```bash
-npm install
-npm run build
-pm2 start ecosystem.config.cjs
-pm2 save
+npm run deploy
 ```
 
 常用命令：
@@ -112,6 +109,19 @@ pm2 status
 pm2 logs hi-ai-chat
 pm2 restart hi-ai-chat
 pm2 stop hi-ai-chat
+```
+
+脚本说明：
+
+```bash
+# 默认会执行 git pull、npm ci、清理 .next、build、pm2 restart/start
+./deploy.sh
+
+# 如果代码已经提前更新好，可以跳过 git pull
+SKIP_GIT_PULL=1 ./deploy.sh
+
+# 如果 PM2 应用名不是 hi-ai-chat，可以覆盖
+APP_NAME=my-app ./deploy.sh
 ```
 
 ## 技术栈
