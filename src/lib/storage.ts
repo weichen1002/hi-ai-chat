@@ -160,6 +160,7 @@ function saveLegacyConversations(conversations: Conversation[]): void {
   }
 }
 
+
 function clearLegacyConversations(): void {
   if (!isBrowser()) return;
 
