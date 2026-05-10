@@ -9,6 +9,7 @@ import {
 } from '@/lib/chat-config';
 import { logServerEvent } from '@/lib/server-log';
 import { OutputMode } from '@/types';
+import { truncateMessages, calculateMessagesChars, MAX_REQUEST_CHARS } from '@/lib/utils';
 
 const API_ENDPOINT = process.env.API_ENDPOINT || process.env.NEXT_PUBLIC_API_ENDPOINT || '';
 const API_KEY = process.env.API_KEY || process.env.NEXT_PUBLIC_API_KEY || '';
@@ -109,7 +110,37 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('API 未配置，请在服务端环境变量中设置 API_ENDPOINT 和 API_KEY', 500, requestId);
     }
 
-    const inputChars = messages.reduce((total, message) => total + message.content.length, 0);
+    const inputChars = calculateMessagesChars(messages);
+
+    // ===== 服务端也做一层保护：如果消息太大，直接在服务端截断 =====
+    // 防止上游 API 返回 413，也保护带宽
+    if (inputChars > MAX_REQUEST_CHARS) {
+      // 分离 system 消息和非 system 消息
+      const systemMessages = messages.filter(m => m.role === 'system');
+      const nonSystemMessages = messages.filter(m => m.role !== 'system');
+
+      // 截断非 system 消息
+      const truncatedNonSystem = truncateMessages(nonSystemMessages) as ChatMessage[];
+
+      // 重新组合：system 消息 + 截断提示 + 截断后的消息
+      const safeMessages: ChatMessage[] = [
+        ...systemMessages,
+        { role: 'system', content: '【注意】由于对话历史过长，只保留了最近部分。请基于已有信息回答。' },
+        ...truncatedNonSystem,
+      ];
+
+      // 用截断后的消息替换
+      messages.length = 0;
+      messages.push(...safeMessages);
+
+      logChatEvent(requestId, 'request_truncated', {
+        model,
+        originalChars: inputChars,
+        truncatedChars: calculateMessagesChars(safeMessages),
+        originalMessageCount: rawMessages.length,
+        truncatedMessageCount: safeMessages.length,
+      });
+    }
 
     logChatEvent(requestId, 'request_start', {
       model,

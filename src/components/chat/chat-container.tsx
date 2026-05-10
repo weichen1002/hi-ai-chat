@@ -9,6 +9,7 @@ import { sendChatMessage } from '@/lib/api';
 import { flushConversationSave } from '@/lib/storage';
 import { OutputMode } from '@/types';
 import { useSmartScroll } from '@/hooks/use-smart-scroll';
+import { truncateMessages, calculateMessagesChars, MAX_REQUEST_CHARS } from '@/lib/utils';
 
 interface ChatContainerProps {
   conversationId: string | null;
@@ -61,8 +62,19 @@ export function ChatContainer({ conversationId }: ChatContainerProps) {
     const controller = new AbortController();
     setAbortController(controller);
 
+    // ===== 防止 413：如果消息太长，截断历史 =====
+    let requestMessages = allMessages;
+    const totalChars = calculateMessagesChars(allMessages);
+    if (totalChars > MAX_REQUEST_CHARS) {
+      const truncated = truncateMessages(allMessages);
+      requestMessages = [
+        { role: 'system', content: '【注意】由于对话历史过长，只保留了最近部分对话。如果缺少上下文，请基于已有信息回答。' },
+        ...truncated,
+      ];
+    }
+
     await sendChatMessage(
-      allMessages,
+      requestMessages,
       model,
       { temperature, outputMode, timeoutMs },
       (chunk) => updateLastMessageInConversation(conversationId, chunk),

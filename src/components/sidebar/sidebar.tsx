@@ -84,64 +84,67 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </button>
       </div>
 
-      {/* New Chat Button */}
-      <div className="px-4 py-3">
-        <button
-          onClick={handleNewConversation}
-          className="btn-gradient w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-medium touch-manipulation"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          新对话
-        </button>
-      </div>
-
-      {/* Mode Tabs */}
-      <div className="px-4 pb-3">
-        <div
-          className="grid grid-cols-2 rounded-2xl p-1.5"
-          style={{ background: 'var(--panel-muted)' }}
-        >
-          {modeItems.map((item) => {
-            const isActive = activeMode === item.mode;
-
-            return (
-              <button
-                key={item.mode}
-                onClick={() => handleModeSwitch(item.mode)}
-                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium transition-all"
-                style={{
-                  background: isActive ? 'var(--bg-elevated)' : 'transparent',
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-                  boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
-                }}
-              >
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto">
+        {/* New Chat Button */}
+        <div className="px-4 py-3">
+          <button
+            onClick={handleNewConversation}
+            className="btn-gradient w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-medium touch-manipulation"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            新对话
+          </button>
         </div>
-      </div>
 
-      {/* Model Selector */}
-      <div className="px-4 pb-3">
-        <ModelSelector />
-      </div>
+        {/* Mode Tabs */}
+        <div className="px-4 pb-3">
+          <div
+            className="grid grid-cols-2 rounded-2xl p-1.5"
+            style={{ background: 'var(--panel-muted)' }}
+          >
+            {modeItems.map((item) => {
+              const isActive = activeMode === item.mode;
 
-      <div className="px-4 pb-3">
-        <GenerationControls />
-      </div>
+              return (
+                <button
+                  key={item.mode}
+                  onClick={() => handleModeSwitch(item.mode)}
+                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium transition-all"
+                  style={{
+                    background: isActive ? 'var(--bg-elevated)' : 'transparent',
+                    color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+                    boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
+                  }}
+                >
+                  <span>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-      {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto px-2 pb-4">
-        <ConversationList
-          conversations={conversations.filter(c => c.mode === activeMode)}
-          currentId={currentConversationId}
-          onSelect={handleSelectConversation}
-          onDelete={handleDeleteConversation}
-        />
+        {/* Model Selector */}
+        <div className="px-4 pb-3">
+          <ModelSelector />
+        </div>
+
+        <div className="px-4 pb-3">
+          <GenerationControls />
+        </div>
+
+        {/* Conversation List */}
+        <div className="px-2 pb-4">
+          <ConversationList
+            conversations={conversations.filter(c => c.mode === activeMode)}
+            currentId={currentConversationId}
+            onSelect={handleSelectConversation}
+            onDelete={handleDeleteConversation}
+          />
+        </div>
       </div>
 
       {/* Bottom: Theme Toggle */}

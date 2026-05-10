@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useAppStore } from '@/stores/app-store';
 import { getDefaultOutputMode, getDefaultTimeoutMs, OUTPUT_MODE_OPTIONS } from '@/lib/chat-config';
 import { OutputMode } from '@/types';
@@ -14,6 +15,7 @@ const TIMEOUT_OPTIONS = [
 ];
 
 export function GenerationControls() {
+  const [collapsed, setCollapsed] = useState(true);
   const { conversations, currentConversationId, updateConversation } = useAppStore();
   const currentConversation = conversations.find((conversation) => conversation.id === currentConversationId);
 
@@ -43,126 +45,146 @@ export function GenerationControls() {
 
   return (
     <div
-      className="rounded-2xl p-3"
+      className="rounded-2xl"
       style={{
         background: 'var(--panel-surface)',
         border: '1px solid var(--border-default)',
       }}
     >
-      <div className="mb-3">
-        <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>生成设置</div>
-        <div className="mt-1 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
-          当前会话独立生效，适合为聊天和写作分别调参数。
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex w-full items-center justify-between p-3"
+      >
+        <div>
+          <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>生成设置</div>
+          <div className="mt-1 text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>
+            当前会话独立生效
+          </div>
         </div>
-      </div>
+        <svg
+          className="w-4 h-4 transition-transform duration-200"
+          style={{
+            color: 'var(--text-muted)',
+            transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+          }}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
 
-      <div className="space-y-3">
-        <label className="block">
-          <div className="mb-1.5 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-            <span>Temperature</span>
-            <span className="tabular-nums">{isDefaultTemperature ? '模型默认' : temperature.toFixed(1)}</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1.5"
-            step="0.1"
-            value={temperature ?? 0.7}
-            onChange={(event) => patchConversation({ temperature: Number(event.target.value) })}
-            className="w-full accent-[var(--accent-from)]"
-          />
-          <div className="mt-1 flex items-center justify-between text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            <span>更稳</span>
-            <button
-              type="button"
-              onClick={() => patchConversation({ temperature: null })}
-              className="rounded-full px-2 py-0.5"
+      {!collapsed && (
+        <div className="space-y-3 px-3 pb-3">
+          <label className="block">
+            <div className="mb-1.5 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+              <span>Temperature</span>
+              <span className="tabular-nums">{isDefaultTemperature ? '模型默认' : temperature.toFixed(1)}</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="1.5"
+              step="0.1"
+              value={temperature ?? 0.7}
+              onChange={(event) => patchConversation({ temperature: Number(event.target.value) })}
+              className="w-full accent-[var(--accent-from)]"
+            />
+            <div className="mt-1 flex items-center justify-between text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              <span>更稳</span>
+              <button
+                type="button"
+                onClick={() => patchConversation({ temperature: null })}
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: isDefaultTemperature ? 'var(--panel-muted)' : 'transparent',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                恢复默认
+              </button>
+              <span>更发散</span>
+            </div>
+          </label>
+
+          <label className="block">
+            <div className="mb-1.5 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+              <span>输出模式</span>
+              <button
+                type="button"
+                onClick={() => patchConversation({ outputMode: defaultOutputMode })}
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: isDefaultOutputMode ? 'var(--panel-muted)' : 'transparent',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                恢复默认
+              </button>
+            </div>
+            <select
+              value={selectedOutputMode}
+              onChange={(event) => patchConversation({ outputMode: event.target.value as OutputMode })}
+              className="w-full rounded-xl px-3 py-2 text-xs outline-none"
               style={{
-                background: isDefaultTemperature ? 'var(--panel-muted)' : 'transparent',
+                background: 'var(--input-bg)',
                 border: '1px solid var(--border-default)',
-                color: 'var(--text-secondary)',
+                color: 'var(--text-primary)',
               }}
             >
-              恢复默认
-            </button>
-            <span>更发散</span>
-          </div>
-        </label>
+              {OUTPUT_MODE_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <div className="mt-1 text-[10px] leading-4" style={{ color: 'var(--text-muted)' }}>
+              {currentModeMeta?.description}
+            </div>
+          </label>
 
-        <label className="block">
-          <div className="mb-1.5 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-            <span>输出模式</span>
-            <button
-              type="button"
-              onClick={() => patchConversation({ outputMode: defaultOutputMode })}
-              className="rounded-full px-2 py-0.5"
+          <label className="block">
+            <div className="mb-1.5 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+              <span>超时控制</span>
+              <button
+                type="button"
+                onClick={() => patchConversation({ timeoutMs: defaultTimeoutMs })}
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: isDefaultTimeout ? 'var(--panel-muted)' : 'transparent',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                恢复默认
+              </button>
+            </div>
+            <select
+              value={timeoutMs}
+              onChange={(event) => patchConversation({ timeoutMs: Number(event.target.value) })}
+              className="w-full rounded-xl px-3 py-2 text-xs outline-none"
               style={{
-                background: isDefaultOutputMode ? 'var(--panel-muted)' : 'transparent',
+                background: 'var(--input-bg)',
                 border: '1px solid var(--border-default)',
-                color: 'var(--text-secondary)',
+                color: 'var(--text-primary)',
               }}
             >
-              恢复默认
-            </button>
-          </div>
-          <select
-            value={selectedOutputMode}
-            onChange={(event) => patchConversation({ outputMode: event.target.value as OutputMode })}
-            className="w-full rounded-xl px-3 py-2 text-xs outline-none"
-            style={{
-              background: 'var(--input-bg)',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-primary)',
-            }}
-          >
-            {OUTPUT_MODE_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <div className="mt-1 text-[10px] leading-4" style={{ color: 'var(--text-muted)' }}>
-            {currentModeMeta?.description}
-          </div>
-        </label>
-
-        <label className="block">
-          <div className="mb-1.5 flex items-center justify-between text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-            <span>超时控制</span>
-            <button
-              type="button"
-              onClick={() => patchConversation({ timeoutMs: defaultTimeoutMs })}
-              className="rounded-full px-2 py-0.5"
-              style={{
-                background: isDefaultTimeout ? 'var(--panel-muted)' : 'transparent',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              恢复默认
-            </button>
-          </div>
-          <select
-            value={timeoutMs}
-            onChange={(event) => patchConversation({ timeoutMs: Number(event.target.value) })}
-            className="w-full rounded-xl px-3 py-2 text-xs outline-none"
-            style={{
-              background: 'var(--input-bg)',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-primary)',
-            }}
-          >
-            {TIMEOUT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <div className="mt-1 text-[10px] leading-4" style={{ color: 'var(--text-muted)' }}>
-            超时后会终止上游请求，避免长时间挂住。
-          </div>
-        </label>
-      </div>
+              {TIMEOUT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <div className="mt-1 text-[10px] leading-4" style={{ color: 'var(--text-muted)' }}>
+              超时后会终止上游请求，避免长时间挂住。
+            </div>
+          </label>
+        </div>
+      )}
     </div>
   );
 }

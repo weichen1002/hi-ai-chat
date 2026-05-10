@@ -8,11 +8,17 @@ import { flushConversationSave } from '@/lib/storage';
 import { MessageList } from '@/components/chat/message-list';
 import { MessageInput } from '@/components/chat/message-input';
 import { WritingPrompts } from './writing-prompts';
-import { WritingContextPanel } from './writing-context-panel';
 import { generateConversationTitle } from '@/lib/utils';
-import { OutputMode } from '@/types';
+import { OutputMode, Message, WritingContext } from '@/types';
 import { useSmartScroll } from '@/hooks/use-smart-scroll';
-import { buildWritingSystemMessages } from '@/lib/writing-context';
+import {
+  buildCompressionPrompt,
+  extractMemoryUpdateFromResponse,
+  stripMemoryUpdateFromResponse,
+  isWritingContextEmpty,
+  needsEmergencyCompression,
+  buildSafeRequestMessages,
+} from '@/lib/writing-context';
 
 interface WritingContainerProps {
   conversationId: string | null;
@@ -33,6 +39,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
     setSidebarOpen,
   } = useAppStore();
   const [inputCollapsed, setInputCollapsed] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   const currentConversation = conversations.find((conversation) => conversation.id === conversationId);
   const messages = useMemo(
@@ -46,7 +53,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
   const headlineTitle = '写作模式';
   const headlineDescription = '像和编辑搭档一样，一边问、一边试、一边改，不用先想清楚全部方向。';
   const followupPlaceholder = '把你现在在想什么、卡在哪，或一小段草稿直接发给我...';
-  const helperText = '可以很模糊地开口，比如“我想写点东西，但还没想好方向”。';
+  const helperText = '可以很模糊地开口，比如"我想写点东西，但还没想好方向"。';
 
   const {
     scrollContainerRef,
@@ -55,6 +62,70 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
     handleScroll,
     scrollToBottom,
   } = useSmartScroll(scrollSignal, conversationId);
+
+  // ==================== 紧急压缩：当历史太长时先压缩再继续 ====================
+
+  const runEmergencyCompression = useCallback(async (
+    convId: string,
+    allVisibleMessages: Message[],
+    currentContext: WritingContext,
+    model: string,
+  ): Promise<boolean> => {
+    /** 返回 true 表示压缩成功 */
+    setIsCompressing(true);
+
+    try {
+      const compressionPrompt = buildCompressionPrompt(currentContext);
+      let accumulatedContent = '';
+
+      await sendChatMessage(
+        [
+          ...allVisibleMessages.map((m) => ({ role: m.role, content: m.content })),
+          { role: 'user' as const, content: compressionPrompt },
+        ],
+        model,
+        { temperature: null, outputMode: 'default', timeoutMs: 60000 },
+        (chunk) => { accumulatedContent += chunk; },
+        async () => {
+          const memoryUpdate = extractMemoryUpdateFromResponse(accumulatedContent);
+          if (memoryUpdate) {
+            updateConversation(convId, {
+              writingContext: {
+                ...currentContext,
+                ...memoryUpdate,
+              },
+            });
+            await flushConversationSave();
+          }
+          setIsCompressing(false);
+        },
+        async () => {
+          setIsCompressing(false);
+        },
+        undefined,
+      );
+
+      // 检查是否压缩成功（记忆被更新了）
+      const updatedConv = useAppStore.getState().conversations.find((c) => c.id === convId);
+      return !isWritingContextEmpty(updatedConv?.writingContext || currentContext);
+    } catch {
+      setIsCompressing(false);
+      return false;
+    }
+  }, [updateConversation]);
+
+  // 后台常规压缩
+  const triggerCompression = useCallback(async (
+    convId: string,
+    allVisibleMessages: Message[],
+    currentContext: WritingContext,
+    model: string,
+  ) => {
+    if (isCompressing || allVisibleMessages.length < 4) return;
+    await runEmergencyCompression(convId, allVisibleMessages, currentContext, model);
+  }, [isCompressing, runEmergencyCompression]);
+
+  // ==================== 发送消息 ====================
 
   const doSendMessage = useCallback(async (
     allMessages: { role: string; content: string }[],
@@ -65,61 +136,154 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
   ) => {
     if (!conversationId || !currentConversation) return;
 
-    addMessageToConversation(conversationId, { role: 'assistant' as const, content: '', model });
+    // 保存非 null 的 conversationId，避免 TypeScript 闭包类型收窄问题
+    const cid: string = conversationId;
+
+    addMessageToConversation(cid, { role: 'assistant' as const, content: '', model });
     setLoading(true);
     setError(null);
 
     const controller = new AbortController();
     setAbortController(controller);
-    const requestMessages = [
-      ...buildWritingSystemMessages(currentConversation.writingContext),
-      ...allMessages.map((message) => ({
-        id: '',
-        role: message.role as 'user' | 'assistant' | 'system',
-        content: message.content,
-        timestamp: Date.now(),
-      })),
-    ].map(({ role, content }) => ({ role, content }));
 
-    await sendChatMessage(
-      requestMessages,
-      model,
-      { temperature, outputMode, timeoutMs },
-      (chunk) => updateLastMessageInConversation(conversationId, chunk),
-      async () => {
-        setLoading(false);
-        setAbortController(null);
-        const latestConversation = useAppStore.getState().conversations.find((conversation) => conversation.id === conversationId);
-        const updatedMessages = latestConversation?.messages || [];
+    const writingContext = currentConversation.writingContext;
+    const contextSnapshot = { ...writingContext };
 
-        updateConversation(conversationId, {
-          title: latestConversation?.title === '新对话'
-            ? `写作: ${generateConversationTitle(updatedMessages)}`
-            : latestConversation?.title,
-        });
+    // ===== 第一步：检查是否需要紧急压缩（历史太长且没有记忆 → 容易 413）=====
+    const allUserVisibleMessages = allMessages.filter((m) => m.role !== 'system') as Message[];
+    if (needsEmergencyCompression(allUserVisibleMessages, writingContext)) {
+      // ⛔ 历史太大又没有记忆！先压缩再发消息
 
-        // 强制刷盘，确保数据立即保存到 IndexedDB
-        await flushConversationSave();
-      },
-      async (errorMessage) => {
-        const latestConversation = useAppStore.getState().conversations.find((conversation) => conversation.id === conversationId);
-        const conversationMessages = latestConversation?.messages || [];
-        const lastMessage = conversationMessages[conversationMessages.length - 1];
+      // 发起紧急压缩（用户会看到"正在压缩记忆..."的提示）
+      const compressed = await runEmergencyCompression(
+        cid,
+        allUserVisibleMessages,
+        writingContext,
+        model,
+      );
 
-        if (lastMessage?.role === 'assistant' && lastMessage.content === '') {
-          removeLastMessageFromConversation(conversationId);
-        }
+      // 重新获取最新的 conversation（压缩可能更新了记忆）
+      const afterCompression = useAppStore.getState().conversations.find((c) => c.id === cid);
+      const newContext = afterCompression?.writingContext || contextSnapshot;
 
-        setError(errorMessage);
-        setLoading(false);
-        setAbortController(null);
+      if (compressed && !isWritingContextEmpty(newContext)) {
+        // ✅ 压缩成功！现在有记忆了，用记忆+最近对话的方式发
+        const safeMessages = buildSafeRequestMessages(allMessages, newContext);
+        await doActualSend(safeMessages.messages);
+      } else {
+        // ❌ 压缩失败，至少截断历史再发，避免 413
+        const truncated = allMessages.slice(-20);
+        const hint = {
+          role: 'system' as const,
+          content: '由于历史过长，只保留了最近对话。请基于已有信息回答。',
+        };
+        await doActualSend([hint, ...truncated]);
+      }
+    } else {
+      // ✅ 正常情况：用安全构建函数
+      const safeMessages = buildSafeRequestMessages(allMessages, writingContext);
+      await doActualSend(safeMessages.messages);
+    }
 
-        // 出错时也强制刷盘，尽可能保留已有内容
-        await flushConversationSave();
-      },
-      controller.signal,
-    );
-  }, [conversationId, currentConversation, addMessageToConversation, updateLastMessageInConversation, removeLastMessageFromConversation, setLoading, setError, setAbortController, updateConversation]);
+    async function doActualSend(
+      requestMessages: { role: string; content: string }[],
+    ) {
+      await sendChatMessage(
+        requestMessages,
+        model,
+        { temperature, outputMode, timeoutMs },
+        (chunk) => updateLastMessageInConversation(cid, chunk),
+        async () => {
+          setLoading(false);
+          setAbortController(null);
+          const latestConversation = useAppStore.getState().conversations.find((c) => c.id === cid);
+          const updatedMessages = latestConversation?.messages || [];
+
+          updateConversation(cid, {
+            title: latestConversation?.title === '新对话'
+              ? `写作: ${generateConversationTitle(updatedMessages)}`
+              : latestConversation?.title,
+          });
+
+          // ===== 从 AI 回复中解析记忆更新 =====
+          const visibleMessages = updatedMessages.filter((msg) => msg.role !== 'system');
+          const assistantMessages = visibleMessages.filter((msg) => msg.role === 'assistant');
+          const lastAssistantContent = assistantMessages[assistantMessages.length - 1]?.content || '';
+
+          if (lastAssistantContent) {
+            const memoryUpdate = extractMemoryUpdateFromResponse(lastAssistantContent);
+            if (memoryUpdate) {
+              const currentContext = latestConversation?.writingContext || contextSnapshot;
+              updateConversation(cid, {
+                writingContext: { ...currentContext, ...memoryUpdate },
+              });
+
+              const cleanedContent = stripMemoryUpdateFromResponse(lastAssistantContent);
+              if (cleanedContent !== lastAssistantContent) {
+                updateConversation(cid, {
+                  messages: updatedMessages.map((msg) =>
+                    msg === updatedMessages[updatedMessages.length - 1]
+                      ? { ...msg, content: cleanedContent }
+                      : msg
+                  ),
+                });
+              }
+            }
+          }
+
+          // ===== 后台压缩检查 =====
+          const latestVisibleMessages = useAppStore.getState().conversations
+            .find((c) => c.id === cid)
+            ?.messages.filter((msg) => msg.role !== 'system') || [];
+
+          const latestContext = useAppStore.getState().conversations
+            .find((c) => c.id === cid)?.writingContext || contextSnapshot;
+
+          const msgCount = latestVisibleMessages.length;
+          const hasMemory = !isWritingContextEmpty(latestContext);
+
+          // 触发后台压缩的条件：对话超过阈值 + 有记忆（有记忆才能压缩）
+          if (msgCount >= 6 && hasMemory) {
+            setTimeout(() => {
+              void triggerCompression(
+                cid,
+                latestVisibleMessages,
+                latestContext,
+                model,
+              );
+            }, 100);
+          }
+
+          await flushConversationSave();
+        },
+        async (errorMessage: string) => {
+          const latestConv = useAppStore.getState().conversations.find((c) => c.id === cid);
+          const convMessages = latestConv?.messages || [];
+          const lastMsg = convMessages[convMessages.length - 1];
+
+          if (lastMsg?.role === 'assistant' && lastMsg.content === '') {
+            removeLastMessageFromConversation(cid);
+          }
+
+          // 检测 413 错误，提示用户
+          if (errorMessage.includes('413') || errorMessage.includes('请求体过大')) {
+            setError(
+              '对话历史太长导致请求过大。系统正在尝试自动压缩记忆，请稍后再试，或新建一个写作对话。'
+            );
+          } else {
+            setError(errorMessage);
+          }
+
+          setLoading(false);
+          setAbortController(null);
+          await flushConversationSave();
+        },
+        controller.signal,
+      );
+    }
+  }, [conversationId, currentConversation, addMessageToConversation, updateLastMessageInConversation,
+      removeLastMessageFromConversation, setLoading, setError, setAbortController, updateConversation,
+      triggerCompression, runEmergencyCompression]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!conversationId || !currentConversation) return;
@@ -146,11 +310,11 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
     if (!conversationId || !currentConversation || messages.length < 2) return;
 
     removeLastMessageFromConversation(conversationId);
-    const messagesWithoutLast = (useAppStore.getState().conversations.find((conversation) => conversation.id === conversationId)?.messages || [])
-      .filter((message) => message.role !== 'system');
+    const messagesWithoutLast = (useAppStore.getState().conversations.find((c) => c.id === conversationId)?.messages || [])
+      .filter((msg) => msg.role !== 'system');
 
     await doSendMessage(
-      messagesWithoutLast.map((message) => ({ role: message.role, content: message.content })),
+      messagesWithoutLast.map((msg) => ({ role: msg.role, content: msg.content })),
       currentConversation.model,
       currentConversation.temperature,
       currentConversation.outputMode,
@@ -174,7 +338,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      {/* 顶部区域 — 折叠时隐藏 */}
+      {/* 顶部区域 */}
       <div
         className="overflow-hidden transition-all duration-300 ease-in-out"
         style={{
@@ -210,6 +374,9 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
               </div>
               <div className="rounded-full px-2.5 py-1 text-[0.68rem]" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
                 {currentConversation?.model || 'gpt-5.5'}
+                {isCompressing && (
+                  <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                )}
               </div>
             </div>
 
@@ -229,6 +396,12 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
               <div className="flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-xs" style={{ background: 'var(--panel-muted)', color: 'var(--text-secondary)' }}>
                 <span>模型</span>
                 <span style={{ color: 'var(--text-primary)' }}>{currentConversation?.model || 'gpt-5.5'}</span>
+                {isCompressing && (
+                  <span className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                    压缩记忆中...
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -241,15 +414,6 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-7"
       >
         <div className={`${panelWidthClass} mx-auto`}>
-          {currentConversation && (
-            <div className="mb-5">
-              <WritingContextPanel
-                conversationId={currentConversation.id}
-                writingContext={currentConversation.writingContext}
-              />
-            </div>
-          )}
-
           {showPrompts ? (
             <div className="space-y-6 animate-fade-in">
               <div className="rounded-[28px] border px-5 py-6 sm:px-7" style={{ background: 'var(--panel-surface)', borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-md)' }}>
@@ -308,7 +472,7 @@ export function WritingContainer({ conversationId }: WritingContainerProps) {
         </div>
       )}
 
-      {/* 底部输入区域 — 折叠/展开控制 */}
+      {/* 底部输入区域 */}
       <div
         className="px-3 pt-1.5 sm:px-6 transition-all duration-300 ease-in-out"
         style={{
